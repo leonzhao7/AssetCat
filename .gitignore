@@ -1,4 +1,7 @@
 data/
+bin/
+logs/
+run/
 web/dist/
 web/node_modules/
 web/tsconfig.tsbuildinfo

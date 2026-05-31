@@ -14,6 +14,22 @@ go run ./cmd/asset-risk-server -addr :9080 -data data/assets.json
 ASSET_RISK_ADDR=:9080 ASSET_RISK_DATA=data/assets.json go run ./cmd/asset-risk-server
 ```
 
+也可以使用管理脚本完成编译、启动和停止：
+
+```bash
+./scripts/assetcat.sh build
+./scripts/assetcat.sh start
+./scripts/assetcat.sh status
+./scripts/assetcat.sh logs
+./scripts/assetcat.sh stop
+```
+
+脚本默认监听 `:9080`，托管 `web/dist`，数据写入 `data/assets.json`。可用环境变量覆盖：
+
+```bash
+ADDR=:9080 DATA_PATH=data/assets.json WEB_DIR=web/dist ./scripts/assetcat.sh restart
+```
+
 ## 前端
 
 开发模式需要同时启动后端和 Vue：
