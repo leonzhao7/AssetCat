@@ -7,6 +7,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"asset-risk-system/internal/domain"
@@ -71,6 +74,31 @@ func TestAssetLifecycle(t *testing.T) {
 	summary := doJSON[domain.AssetSummary](t, handler, http.MethodGet, "/summary", nil, http.StatusOK)
 	if summary.Assets != 1 || summary.Risks != 1 || summary.Ports != 1 || summary.Components != 1 {
 		t.Fatalf("summary = %#v, want counts for one populated asset", summary)
+	}
+}
+
+func TestStaticFrontendFallback(t *testing.T) {
+	repository, err := store.New("")
+	if err != nil {
+		t.Fatalf("store.New returned error: %v", err)
+	}
+	webDir := t.TempDir()
+	index := []byte("<!doctype html><html><body>AssetCat UI</body></html>")
+	if err := os.WriteFile(filepath.Join(webDir, "index.html"), index, 0o644); err != nil {
+		t.Fatalf("os.WriteFile returned error: %v", err)
+	}
+	handler := httpapi.NewWithStatic(repository, slog.New(slog.NewTextHandler(io.Discard, nil)), webDir)
+
+	for _, path := range []string{"/", "/assets-view/overview"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET %s status = %d, want 200", path, rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), "AssetCat UI") {
+			t.Fatalf("GET %s body = %q, want index fallback", path, rec.Body.String())
+		}
 	}
 }
 

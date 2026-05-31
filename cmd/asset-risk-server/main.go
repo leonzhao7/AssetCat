@@ -15,6 +15,7 @@ func main() {
 	var (
 		addr     = flag.String("addr", envOr("ASSET_RISK_ADDR", ":8080"), "HTTP listen address")
 		dataPath = flag.String("data", envOr("ASSET_RISK_DATA", "data/assets.json"), "JSON data file")
+		webDir   = flag.String("web", envOr("ASSET_RISK_WEB", ""), "directory containing built frontend assets")
 	)
 	flag.Parse()
 
@@ -27,11 +28,11 @@ func main() {
 
 	server := &http.Server{
 		Addr:              *addr,
-		Handler:           httpapi.New(repository, logger),
+		Handler:           httpapi.NewWithStatic(repository, logger, *webDir),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	logger.Info("asset risk server listening", "addr", *addr, "data", *dataPath)
+	logger.Info("asset risk server listening", "addr", *addr, "data", *dataPath, "web", *webDir)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		logger.Error("server stopped", "error", err)
 		os.Exit(1)

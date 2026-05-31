@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -18,17 +20,30 @@ type Server struct {
 }
 
 func New(store *store.Store, logger *slog.Logger) http.Handler {
+	return NewWithStatic(store, logger, "")
+}
+
+func NewWithStatic(store *store.Store, logger *slog.Logger, webDir string) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	server := &Server{store: store, logger: logger}
 
+	apiMux := http.NewServeMux()
+	apiMux.HandleFunc("GET /healthz", server.health)
+	apiMux.HandleFunc("GET /summary", server.summary)
+	apiMux.HandleFunc("/assets", server.assets)
+	apiMux.HandleFunc("/assets/", server.assetRoutes)
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", server.health)
-	mux.HandleFunc("GET /summary", server.summary)
-	mux.HandleFunc("/assets", server.assets)
-	mux.HandleFunc("/assets/", server.assetRoutes)
-	return requestLog(logger, recoverPanic(jsonMiddleware(mux)))
+	mux.Handle("/healthz", jsonMiddleware(apiMux))
+	mux.Handle("/summary", jsonMiddleware(apiMux))
+	mux.Handle("/assets", jsonMiddleware(apiMux))
+	mux.Handle("/assets/", jsonMiddleware(apiMux))
+	if webDir != "" {
+		mux.Handle("/", spaHandler(webDir))
+	}
+	return requestLog(logger, recoverPanic(mux))
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
@@ -312,4 +327,20 @@ func writeStoreError(w http.ResponseWriter, err error) {
 	default:
 		writeError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	}
+}
+
+func spaHandler(webDir string) http.Handler {
+	fileServer := http.FileServer(http.Dir(webDir))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(filepath.Clean("/"+r.URL.Path), "/")
+		if path == "." {
+			path = "index.html"
+		}
+		fullPath := filepath.Join(webDir, path)
+		if info, err := os.Stat(fullPath); err == nil && !info.IsDir() {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+		http.ServeFile(w, r, filepath.Join(webDir, "index.html"))
+	})
 }

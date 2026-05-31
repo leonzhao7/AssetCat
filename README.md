@@ -5,19 +5,41 @@
 ## 运行
 
 ```bash
-go run ./cmd/asset-risk-server -addr :8080 -data data/assets.json
+go run ./cmd/asset-risk-server -addr :9080 -data data/assets.json
 ```
 
 环境变量也可配置：
 
 ```bash
-ASSET_RISK_ADDR=:8080 ASSET_RISK_DATA=data/assets.json go run ./cmd/asset-risk-server
+ASSET_RISK_ADDR=:9080 ASSET_RISK_DATA=data/assets.json go run ./cmd/asset-risk-server
+```
+
+## 前端
+
+开发模式需要同时启动后端和 Vue：
+
+```bash
+go run ./cmd/asset-risk-server -addr :9080 -data data/assets.json
+cd web
+npm install
+npm run dev
+```
+
+Vite 开发服务运行在 `http://127.0.0.1:6173`，并把 `/assets`、`/summary`、`/healthz` 代理到 `127.0.0.1:9080`。
+
+生产模式先构建前端，再由 Go 服务托管静态文件：
+
+```bash
+cd web
+npm run build
+cd ..
+go run ./cmd/asset-risk-server -addr :9080 -data data/assets.json -web web/dist
 ```
 
 ## 创建资产
 
 ```bash
-curl -s http://127.0.0.1:8080/assets \
+curl -s http://127.0.0.1:9080/assets \
   -H 'Content-Type: application/json' \
   -d '{
     "primary_domain": "example.com",
@@ -51,7 +73,7 @@ curl -s http://127.0.0.1:8080/assets \
 把 `{asset_id}` 替换为创建资产后返回的 `id`：
 
 ```bash
-curl -s "http://127.0.0.1:8080/assets/{asset_id}/domains/api.example.com/risks" \
+curl -s "http://127.0.0.1:9080/assets/{asset_id}/domains/api.example.com/risks" \
   -H 'Content-Type: application/json' \
   -d '{
     "title": "admin console exposed",
@@ -65,11 +87,11 @@ curl -s "http://127.0.0.1:8080/assets/{asset_id}/domains/api.example.com/risks" 
 ## 常用查询
 
 ```bash
-curl -s http://127.0.0.1:8080/assets
-curl -s 'http://127.0.0.1:8080/assets?q=example'
-curl -s 'http://127.0.0.1:8080/assets?severity=high'
-curl -s http://127.0.0.1:8080/summary
-curl -s "http://127.0.0.1:8080/assets/{asset_id}/risks?severity=high"
+curl -s http://127.0.0.1:9080/assets
+curl -s 'http://127.0.0.1:9080/assets?q=example'
+curl -s 'http://127.0.0.1:9080/assets?severity=high'
+curl -s http://127.0.0.1:9080/summary
+curl -s "http://127.0.0.1:9080/assets/{asset_id}/risks?severity=high"
 ```
 
 ## 设计文档
