@@ -24,10 +24,16 @@ ASSET_RISK_ADDR=:9080 ASSET_RISK_DATA=data/assets.json go run ./cmd/asset-risk-s
 ./scripts/assetcat.sh stop
 ```
 
-脚本默认监听 `:9080`，托管 `web/dist`，数据写入 `data/assets.json`。可用环境变量覆盖：
+脚本会同时管理后端和前端：
+
+- 后端默认监听 `:9080`，数据写入 `data/assets.json`，并托管 `web/dist`
+- 前端默认监听 `6173`，通过 Vite 代理访问后端 API
+- `build/start/stop/restart/status/logs` 都会覆盖前端和后端
+
+可用环境变量覆盖：
 
 ```bash
-ADDR=:9080 DATA_PATH=data/assets.json WEB_DIR=web/dist ./scripts/assetcat.sh restart
+ADDR=:9080 FRONTEND_PORT=6173 DATA_PATH=data/assets.json WEB_DIR=web/dist ./scripts/assetcat.sh restart
 ```
 
 ## 前端
