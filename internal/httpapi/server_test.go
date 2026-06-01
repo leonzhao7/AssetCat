@@ -54,14 +54,22 @@ func TestAssetLifecycle(t *testing.T) {
 		t.Fatal("created asset id is empty")
 	}
 
+	updatedDomain := doJSON[domain.Asset](t, handler, http.MethodPut, "/assets/"+created.ID+"/domains/api.example.com", domain.DomainRecord{
+		Name: "admin.example.com",
+		Kind: domain.DomainKindSubdomain,
+	}, http.StatusOK)
+	if !hasDomain(updatedDomain, "admin.example.com") || hasDomain(updatedDomain, "api.example.com") {
+		t.Fatalf("domains after update = %#v, want admin.example.com replacing api.example.com", updatedDomain.Domains)
+	}
+
 	risk := domain.RiskFinding{
 		Title:    "admin console exposed",
 		Severity: domain.SeverityHigh,
-		URL:      "https://api.example.com/admin",
-		Request:  "GET /admin HTTP/1.1\r\nHost: api.example.com\r\n\r\n",
+		URL:      "https://admin.example.com/admin",
+		Request:  "GET /admin HTTP/1.1\r\nHost: admin.example.com\r\n\r\n",
 		Response: "HTTP/1.1 200 OK\r\n\r\nadmin",
 	}
-	updated := doJSON[domain.Asset](t, handler, http.MethodPost, "/assets/"+created.ID+"/domains/api.example.com/risks", risk, http.StatusOK)
+	updated := doJSON[domain.Asset](t, handler, http.MethodPost, "/assets/"+created.ID+"/domains/admin.example.com/risks", risk, http.StatusOK)
 	if len(updated.Domains) != 2 {
 		t.Fatalf("len(updated.Domains) = %d, want primary plus subdomain", len(updated.Domains))
 	}
@@ -71,10 +79,16 @@ func TestAssetLifecycle(t *testing.T) {
 		t.Fatalf("risks = %#v, want high severity risk", risks)
 	}
 
-	summary := doJSON[domain.AssetSummary](t, handler, http.MethodGet, "/summary", nil, http.StatusOK)
-	if summary.Assets != 1 || summary.Risks != 1 || summary.Ports != 1 || summary.Components != 1 {
-		t.Fatalf("summary = %#v, want counts for one populated asset", summary)
+	stats := doJSON[domain.AssetStats](t, handler, http.MethodGet, "/assets/"+created.ID+"/stats", nil, http.StatusOK)
+	if stats.Risks != 1 || stats.Ports != 1 || stats.Components != 1 || stats.Subdomains != 1 {
+		t.Fatalf("stats = %#v, want counts for one populated asset", stats)
 	}
+
+	afterDelete := doJSON[domain.Asset](t, handler, http.MethodDelete, "/assets/"+created.ID+"/domains/admin.example.com", nil, http.StatusOK)
+	if len(afterDelete.Domains) != 1 || afterDelete.Domains[0].Name != "example.com" {
+		t.Fatalf("domains after delete = %#v, want only primary domain", afterDelete.Domains)
+	}
+	doJSON[errorResponseBody](t, handler, http.MethodDelete, "/assets/"+created.ID+"/domains/example.com", nil, http.StatusBadRequest)
 }
 
 func TestStaticFrontendFallback(t *testing.T) {
@@ -128,4 +142,18 @@ func doJSON[T any](t *testing.T, handler http.Handler, method string, path strin
 		t.Fatalf("json.Unmarshal response returned error: %v; body: %s", err, rec.Body.String())
 	}
 	return out
+}
+
+type errorResponseBody struct {
+	Error   string `json:"error"`
+	Message string `json:"message"`
+}
+
+func hasDomain(asset domain.Asset, name string) bool {
+	for _, record := range asset.Domains {
+		if record.Name == name {
+			return true
+		}
+	}
+	return false
 }

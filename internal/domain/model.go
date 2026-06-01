@@ -97,13 +97,15 @@ type PortRecord struct {
 	LastSeen  time.Time `json:"last_seen"`
 }
 
-type AssetSummary struct {
-	Assets      int              `json:"assets"`
-	Domains     int              `json:"domains"`
-	IPs         int              `json:"ips"`
-	Ports       int              `json:"ports"`
-	Components  int              `json:"components"`
-	Risks       int              `json:"risks"`
-	BySeverity  map[Severity]int `json:"by_severity"`
-	LastUpdated time.Time        `json:"last_updated,omitempty"`
+type AssetStats struct {
+	AssetID       string           `json:"asset_id"`
+	PrimaryDomain string           `json:"primary_domain"`
+	Domains       int              `json:"domains"`
+	Subdomains    int              `json:"subdomains"`
+	IPs           int              `json:"ips"`
+	Ports         int              `json:"ports"`
+	Components    int              `json:"components"`
+	Risks         int              `json:"risks"`
+	BySeverity    map[Severity]int `json:"by_severity"`
+	LastUpdated   time.Time        `json:"last_updated,omitempty"`
 }

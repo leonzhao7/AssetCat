@@ -47,7 +47,7 @@ npm install
 npm run dev
 ```
 
-Vite 开发服务运行在 `http://127.0.0.1:6173`，并把 `/assets`、`/summary`、`/healthz` 代理到 `127.0.0.1:9080`。
+Vite 开发服务运行在 `http://127.0.0.1:6173`，并把 `/assets`、`/healthz` 代理到 `127.0.0.1:9080`。
 
 生产模式先构建前端，再由 Go 服务托管静态文件：
 
@@ -106,13 +106,31 @@ curl -s "http://127.0.0.1:9080/assets/{asset_id}/domains/api.example.com/risks" 
   }'
 ```
 
+## 域名管理
+
+子域名和主域名属于同一个资产，域名在资产详情下维护：
+
+```bash
+curl -s "http://127.0.0.1:9080/assets/{asset_id}/domains" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"api.example.com","kind":"subdomain"}'
+
+curl -s -X PUT "http://127.0.0.1:9080/assets/{asset_id}/domains/api.example.com" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"admin.example.com","kind":"subdomain"}'
+
+curl -s -X DELETE "http://127.0.0.1:9080/assets/{asset_id}/domains/admin.example.com"
+```
+
+主域名是资产标识，不能通过域名删除接口删除。
+
 ## 常用查询
 
 ```bash
 curl -s http://127.0.0.1:9080/assets
 curl -s 'http://127.0.0.1:9080/assets?q=example'
 curl -s 'http://127.0.0.1:9080/assets?severity=high'
-curl -s http://127.0.0.1:9080/summary
+curl -s "http://127.0.0.1:9080/assets/{asset_id}/stats"
 curl -s "http://127.0.0.1:9080/assets/{asset_id}/risks?severity=high"
 ```
 

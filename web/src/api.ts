@@ -1,4 +1,4 @@
-import type { Asset, AssetSummary, CreateAssetPayload, RiskFinding } from './types'
+import type { Asset, AssetStats, CreateAssetPayload, DomainRecord, RiskFinding } from './types'
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
@@ -28,16 +28,36 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export function fetchSummary() {
-  return request<AssetSummary>('/summary')
-}
-
 export function fetchAssets(filters: { q?: string; severity?: string } = {}) {
   const params = new URLSearchParams()
   if (filters.q) params.set('q', filters.q)
   if (filters.severity) params.set('severity', filters.severity)
   const suffix = params.toString() ? `?${params}` : ''
   return request<Asset[]>(`/assets${suffix}`)
+}
+
+export function fetchAssetStats(assetID: string) {
+  return request<AssetStats>(`/assets/${encodeURIComponent(assetID)}/stats`)
+}
+
+export function addDomain(assetID: string, payload: Partial<DomainRecord>) {
+  return request<Asset>(`/assets/${encodeURIComponent(assetID)}/domains`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateDomain(assetID: string, domainName: string, payload: Partial<DomainRecord>) {
+  return request<Asset>(`/assets/${encodeURIComponent(assetID)}/domains/${encodeURIComponent(domainName)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteDomain(assetID: string, domainName: string) {
+  return request<Asset>(`/assets/${encodeURIComponent(assetID)}/domains/${encodeURIComponent(domainName)}`, {
+    method: 'DELETE',
+  })
 }
 
 export function createAsset(payload: CreateAssetPayload) {

@@ -31,13 +31,11 @@ func NewWithStatic(store *store.Store, logger *slog.Logger, webDir string) http.
 
 	apiMux := http.NewServeMux()
 	apiMux.HandleFunc("GET /healthz", server.health)
-	apiMux.HandleFunc("GET /summary", server.summary)
 	apiMux.HandleFunc("/assets", server.assets)
 	apiMux.HandleFunc("/assets/", server.assetRoutes)
 
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", jsonMiddleware(apiMux))
-	mux.Handle("/summary", jsonMiddleware(apiMux))
 	mux.Handle("/assets", jsonMiddleware(apiMux))
 	mux.Handle("/assets/", jsonMiddleware(apiMux))
 	if webDir != "" {
@@ -51,14 +49,6 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 		"status": "ok",
 		"time":   time.Now().UTC().Format(time.RFC3339),
 	})
-}
-
-func (s *Server) summary(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		methodNotAllowed(w, http.MethodGet)
-		return
-	}
-	writeJSON(w, http.StatusOK, s.store.Summary())
 }
 
 func (s *Server) assets(w http.ResponseWriter, r *http.Request) {
@@ -92,6 +82,12 @@ func (s *Server) assetRoutes(w http.ResponseWriter, r *http.Request) {
 	switch parts[1] {
 	case "domains":
 		s.domainRoutes(w, r, assetID, parts[2:])
+	case "stats":
+		if len(parts) == 2 && r.Method == http.MethodGet {
+			s.assetStats(w, r, assetID)
+			return
+		}
+		methodNotAllowed(w, http.MethodGet)
 	case "ips":
 		if len(parts) == 2 && r.Method == http.MethodPost {
 			s.addIP(w, r, assetID)
@@ -151,6 +147,22 @@ func (s *Server) domainRoutes(w http.ResponseWriter, r *http.Request, assetID st
 		s.addDomain(w, r, assetID)
 		return
 	}
+	if len(rest) == 1 {
+		domainName, err := url.PathUnescape(rest[0])
+		if err != nil {
+			badRequest(w, "invalid domain name")
+			return
+		}
+		switch r.Method {
+		case http.MethodPut:
+			s.updateDomain(w, r, assetID, domainName)
+		case http.MethodDelete:
+			s.deleteDomain(w, r, assetID, domainName)
+		default:
+			methodNotAllowed(w, http.MethodPut, http.MethodDelete)
+		}
+		return
+	}
 	if len(rest) == 2 && rest[1] == "risks" && r.Method == http.MethodPost {
 		domainName, err := url.PathUnescape(rest[0])
 		if err != nil {
@@ -198,6 +210,37 @@ func (s *Server) addDomain(w http.ResponseWriter, r *http.Request, assetID strin
 		return
 	}
 	writeJSON(w, http.StatusOK, asset)
+}
+
+func (s *Server) updateDomain(w http.ResponseWriter, r *http.Request, assetID string, domainName string) {
+	var record domain.DomainRecord
+	if !decodeJSON(w, r, &record) {
+		return
+	}
+	asset, err := s.store.UpdateDomain(assetID, domainName, record)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, asset)
+}
+
+func (s *Server) deleteDomain(w http.ResponseWriter, r *http.Request, assetID string, domainName string) {
+	asset, err := s.store.DeleteDomain(assetID, domainName)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, asset)
+}
+
+func (s *Server) assetStats(w http.ResponseWriter, r *http.Request, assetID string) {
+	stats, err := s.store.Stats(assetID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, stats)
 }
 
 func (s *Server) addIP(w http.ResponseWriter, r *http.Request, assetID string) {

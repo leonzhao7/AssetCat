@@ -332,26 +332,26 @@ func MergeComponent(existing ComponentRecord, incoming ComponentRecord, now time
 	return incoming, nil
 }
 
-func Summary(assets []Asset) AssetSummary {
-	result := AssetSummary{
-		Assets:     len(assets),
-		BySeverity: make(map[Severity]int),
+func Stats(asset Asset) AssetStats {
+	result := AssetStats{
+		AssetID:       asset.ID,
+		PrimaryDomain: asset.PrimaryDomain,
+		Domains:       len(asset.Domains),
+		IPs:           len(asset.IPs),
+		Components:    len(asset.Components),
+		BySeverity:    make(map[Severity]int),
+		LastUpdated:   asset.UpdatedAt,
 	}
-	for _, asset := range assets {
-		result.Domains += len(asset.Domains)
-		result.IPs += len(asset.IPs)
-		result.Components += len(asset.Components)
-		if asset.UpdatedAt.After(result.LastUpdated) {
-			result.LastUpdated = asset.UpdatedAt
+	for _, ip := range asset.IPs {
+		result.Ports += len(ip.Ports)
+	}
+	for _, record := range asset.Domains {
+		if record.Kind == DomainKindSubdomain {
+			result.Subdomains++
 		}
-		for _, ip := range asset.IPs {
-			result.Ports += len(ip.Ports)
-		}
-		for _, domain := range asset.Domains {
-			for _, risk := range domain.Risks {
-				result.Risks++
-				result.BySeverity[risk.Severity]++
-			}
+		for _, risk := range record.Risks {
+			result.Risks++
+			result.BySeverity[risk.Severity]++
 		}
 	}
 	return result

@@ -1,8 +1,10 @@
 export type Severity = 'info' | 'low' | 'medium' | 'high' | 'critical'
 
-export interface AssetSummary {
-  assets: number
+export interface AssetStats {
+  asset_id: string
+  primary_domain: string
   domains: number
+  subdomains: number
   ips: number
   ports: number
   components: number

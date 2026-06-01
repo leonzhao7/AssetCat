@@ -4,6 +4,7 @@ import {
   BarChart3,
   Box,
   Bug,
+  Edit3,
   Globe2,
   Layers3,
   Network,
@@ -12,15 +13,16 @@ import {
   Search,
   Server,
   ShieldAlert,
+  Trash2,
   X,
 } from 'lucide-vue-next'
 import { computed, onMounted, reactive, ref } from 'vue'
-import { addRisk, createAsset, fetchAssets, fetchSummary } from './api'
-import type { Asset, AssetSummary, CreateAssetPayload, RiskFinding, Severity } from './types'
+import { addDomain, addRisk, createAsset, deleteDomain, fetchAssets, fetchAssetStats, updateDomain } from './api'
+import type { Asset, AssetStats, CreateAssetPayload, DomainRecord, RiskFinding, Severity } from './types'
 
 const severities: Severity[] = ['critical', 'high', 'medium', 'low', 'info']
 
-const summary = ref<AssetSummary | null>(null)
+const assetStats = ref<AssetStats | null>(null)
 const assets = ref<Asset[]>([])
 const selectedID = ref('')
 const loading = ref(false)
@@ -30,6 +32,7 @@ const query = ref('')
 const severityFilter = ref('')
 const showAssetForm = ref(false)
 const showRiskForm = ref(false)
+const showDomainForm = ref(false)
 
 const assetForm = reactive({
   name: '',
@@ -53,18 +56,25 @@ const riskForm = reactive({
   response: '',
 })
 
+const domainForm = reactive({
+  mode: 'create' as 'create' | 'edit',
+  originalName: '',
+  name: '',
+  kind: 'subdomain' as DomainRecord['kind'],
+})
+
 const selectedAsset = computed(() => assets.value.find((asset) => asset.id === selectedID.value) ?? assets.value[0])
 const visibleDomains = computed(() => selectedAsset.value?.domains ?? [])
 const visibleRisks = computed(() => visibleDomains.value.flatMap((domain) => (domain.risks ?? []).map((risk) => ({ ...risk, domain: domain.name }))))
 const riskCount = computed(() => visibleRisks.value.length)
 
 const score = computed(() => {
-  const counts = summary.value?.by_severity ?? {}
+  const counts = assetStats.value?.by_severity ?? {}
   return (counts.critical ?? 0) * 100 + (counts.high ?? 0) * 60 + (counts.medium ?? 0) * 25 + (counts.low ?? 0) * 8
 })
 
 const topRiskLabel = computed(() => {
-  const counts = summary.value?.by_severity ?? {}
+  const counts = assetStats.value?.by_severity ?? {}
   const severity = severities.find((item) => (counts[item] ?? 0) > 0)
   return severity ? severity.toUpperCase() : 'CLEAR'
 })
@@ -73,20 +83,25 @@ async function loadData() {
   loading.value = true
   error.value = ''
   try {
-    const [nextSummary, nextAssets] = await Promise.all([
-      fetchSummary(),
-      fetchAssets({ q: query.value.trim(), severity: severityFilter.value }),
-    ])
-    summary.value = nextSummary
+    const nextAssets = await fetchAssets({ q: query.value.trim(), severity: severityFilter.value })
     assets.value = nextAssets
     if (!assets.value.some((asset) => asset.id === selectedID.value)) {
       selectedID.value = assets.value[0]?.id ?? ''
     }
+    await loadSelectedStats()
   } catch (err) {
     error.value = err instanceof Error ? err.message : '加载失败'
   } finally {
     loading.value = false
   }
+}
+
+async function loadSelectedStats() {
+  if (!selectedID.value) {
+    assetStats.value = null
+    return
+  }
+  assetStats.value = await fetchAssetStats(selectedID.value)
 }
 
 async function submitAsset() {
@@ -160,9 +175,70 @@ async function submitRisk() {
   }
 }
 
+async function submitDomain() {
+  const asset = selectedAsset.value
+  if (!asset) return
+  saving.value = true
+  error.value = ''
+  try {
+    const payload = {
+      name: domainForm.name,
+      kind: domainForm.kind,
+    }
+    const updated =
+      domainForm.mode === 'edit'
+        ? await updateDomain(asset.id, domainForm.originalName, payload)
+        : await addDomain(asset.id, payload)
+    showDomainForm.value = false
+    selectedID.value = updated.id
+    await loadData()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '保存域名失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function removeDomain(domainName: string) {
+  const asset = selectedAsset.value
+  if (!asset) return
+  saving.value = true
+  error.value = ''
+  try {
+    const updated = await deleteDomain(asset.id, domainName)
+    selectedID.value = updated.id
+    await loadData()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '删除域名失败'
+  } finally {
+    saving.value = false
+  }
+}
+
 function selectAsset(asset: Asset) {
   selectedID.value = asset.id
   riskForm.domain = asset.primary_domain
+  void loadSelectedStats()
+}
+
+function openCreateDomain() {
+  Object.assign(domainForm, {
+    mode: 'create',
+    originalName: '',
+    name: '',
+    kind: 'subdomain',
+  })
+  showDomainForm.value = true
+}
+
+function openEditDomain(record: DomainRecord) {
+  Object.assign(domainForm, {
+    mode: 'edit',
+    originalName: record.name,
+    name: record.name,
+    kind: record.kind,
+  })
+  showDomainForm.value = true
 }
 
 function resetAssetForm() {
@@ -267,23 +343,23 @@ onMounted(loadData)
       <section class="stats-grid">
         <div class="stat">
           <Globe2 :size="22" />
-          <span>资产</span>
-          <strong>{{ summary?.assets ?? 0 }}</strong>
+          <span>域名</span>
+          <strong>{{ assetStats?.domains ?? 0 }}</strong>
         </div>
         <div class="stat">
           <Network :size="22" />
-          <span>域名</span>
-          <strong>{{ summary?.domains ?? 0 }}</strong>
+          <span>子域名</span>
+          <strong>{{ assetStats?.subdomains ?? 0 }}</strong>
         </div>
         <div class="stat">
           <Server :size="22" />
           <span>端口</span>
-          <strong>{{ summary?.ports ?? 0 }}</strong>
+          <strong>{{ assetStats?.ports ?? 0 }}</strong>
         </div>
         <div class="stat">
           <Bug :size="22" />
           <span>风险</span>
-          <strong>{{ summary?.risks ?? 0 }}</strong>
+          <strong>{{ assetStats?.risks ?? 0 }}</strong>
         </div>
       </section>
 
@@ -350,13 +426,32 @@ onMounted(loadData)
           </div>
 
           <section class="panel">
-            <h3>域名与风险</h3>
+            <div class="panel-title">
+              <h3>域名与风险</h3>
+              <button class="icon-button small" type="button" title="新增域名" @click="openCreateDomain">
+                <Plus :size="16" />
+              </button>
+            </div>
             <div class="domain-line" v-for="domain in visibleDomains" :key="domain.name">
               <span>
                 <strong>{{ domain.name }}</strong>
                 <small>{{ domain.kind }}</small>
               </span>
-              <em>{{ domain.risks?.length ?? 0 }}</em>
+              <div class="domain-actions">
+                <em>{{ domain.risks?.length ?? 0 }}</em>
+                <button class="icon-button small" type="button" title="编辑域名" @click="openEditDomain(domain)">
+                  <Edit3 :size="15" />
+                </button>
+                <button
+                  class="icon-button small danger"
+                  type="button"
+                  title="删除域名"
+                  :disabled="domain.name === selectedAsset.primary_domain || saving"
+                  @click="removeDomain(domain.name)"
+                >
+                  <Trash2 :size="15" />
+                </button>
+              </div>
             </div>
           </section>
 
@@ -448,6 +543,29 @@ onMounted(loadData)
         <button class="primary-button full" type="submit" :disabled="saving">
           <Plus :size="18" />
           <span>{{ saving ? '保存中' : '保存风险' }}</span>
+        </button>
+      </form>
+    </div>
+
+    <div v-if="showDomainForm" class="overlay" @click.self="showDomainForm = false">
+      <form class="drawer" @submit.prevent="submitDomain">
+        <header>
+          <h2>{{ domainForm.mode === 'edit' ? '编辑域名' : '新增域名' }}</h2>
+          <button class="icon-button" type="button" title="关闭" @click="showDomainForm = false">
+            <X :size="18" />
+          </button>
+        </header>
+        <label>域名<input v-model="domainForm.name" required placeholder="api.example.com" /></label>
+        <label>类型
+          <select v-model="domainForm.kind">
+            <option value="primary">primary</option>
+            <option value="subdomain">subdomain</option>
+            <option value="ip_alias">ip_alias</option>
+          </select>
+        </label>
+        <button class="primary-button full" type="submit" :disabled="saving">
+          <Plus :size="18" />
+          <span>{{ saving ? '保存中' : '保存域名' }}</span>
         </button>
       </form>
     </div>

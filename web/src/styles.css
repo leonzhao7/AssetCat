@@ -189,6 +189,20 @@ h3 {
   padding: 0;
 }
 
+.icon-button.small {
+  width: 30px;
+  min-height: 30px;
+}
+
+.icon-button.danger {
+  color: var(--red);
+}
+
+.icon-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .primary-button {
   padding: 0 14px;
   border-color: var(--green);
@@ -401,6 +415,13 @@ textarea {
   border-top: 1px solid var(--line);
 }
 
+.panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .domain-line,
 .component,
 .risk-item,
@@ -412,14 +433,29 @@ textarea {
 
 .domain-line {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 14px;
   padding: 11px 12px;
 }
 
+.domain-line > span {
+  min-width: 0;
+}
+
 .domain-line strong,
 .domain-line small {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.domain-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
 }
 
 .domain-line em {

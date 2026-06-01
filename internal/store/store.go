@@ -150,6 +150,99 @@ func (s *Store) AddDomain(assetID string, record domain.DomainRecord) (domain.As
 	return cloneAsset(asset), s.saveLocked()
 }
 
+func (s *Store) UpdateDomain(assetID string, domainName string, record domain.DomainRecord) (domain.Asset, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	asset, ok := s.assets[assetID]
+	if !ok {
+		return domain.Asset{}, ErrNotFound
+	}
+	now := s.now().UTC()
+	domainName = domain.NormalizeDomain(domainName)
+	if domainName == "" {
+		return domain.Asset{}, fmt.Errorf("%w: domain name is required", domain.ErrValidation)
+	}
+
+	index := -1
+	for i := range asset.Domains {
+		if asset.Domains[i].Name == domainName {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return domain.Asset{}, ErrNotFound
+	}
+
+	existing := asset.Domains[index]
+	if record.Name == "" {
+		record.Name = existing.Name
+	}
+	if record.Kind == "" {
+		record.Kind = existing.Kind
+	}
+	if record.Risks == nil {
+		record.Risks = existing.Risks
+	}
+	record.FirstSeen = existing.FirstSeen
+	if err := domain.NormalizeDomainRecord(&record, asset.PrimaryDomain, now); err != nil {
+		return domain.Asset{}, err
+	}
+	if existing.Name == asset.PrimaryDomain && record.Name != existing.Name {
+		return domain.Asset{}, fmt.Errorf("%w: primary domain cannot be renamed from domain endpoint", domain.ErrValidation)
+	}
+	for i := range asset.Domains {
+		if i != index && asset.Domains[i].Name == record.Name {
+			return domain.Asset{}, fmt.Errorf("%w: domain already exists in asset", domain.ErrValidation)
+		}
+	}
+	asset.Domains[index] = record
+	asset.UpdatedAt = now
+	asset, err := domain.NormalizeAsset(asset, now)
+	if err != nil {
+		return domain.Asset{}, err
+	}
+	s.assets[assetID] = asset
+	return cloneAsset(asset), s.saveLocked()
+}
+
+func (s *Store) DeleteDomain(assetID string, domainName string) (domain.Asset, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	asset, ok := s.assets[assetID]
+	if !ok {
+		return domain.Asset{}, ErrNotFound
+	}
+	now := s.now().UTC()
+	domainName = domain.NormalizeDomain(domainName)
+	if domainName == "" {
+		return domain.Asset{}, fmt.Errorf("%w: domain name is required", domain.ErrValidation)
+	}
+	if domainName == asset.PrimaryDomain {
+		return domain.Asset{}, fmt.Errorf("%w: primary domain cannot be deleted from asset", domain.ErrValidation)
+	}
+	index := -1
+	for i := range asset.Domains {
+		if asset.Domains[i].Name == domainName {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return domain.Asset{}, ErrNotFound
+	}
+	asset.Domains = append(asset.Domains[:index], asset.Domains[index+1:]...)
+	asset.UpdatedAt = now
+	asset, err := domain.NormalizeAsset(asset, now)
+	if err != nil {
+		return domain.Asset{}, err
+	}
+	s.assets[assetID] = asset
+	return cloneAsset(asset), s.saveLocked()
+}
+
 func (s *Store) AddIP(assetID string, record domain.IPRecord) (domain.Asset, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -284,8 +377,12 @@ func (s *Store) AddRisk(assetID string, domainName string, finding domain.RiskFi
 	return cloneAsset(asset), s.saveLocked()
 }
 
-func (s *Store) Summary() domain.AssetSummary {
-	return domain.Summary(s.List())
+func (s *Store) Stats(assetID string) (domain.AssetStats, error) {
+	asset, ok := s.Get(assetID)
+	if !ok {
+		return domain.AssetStats{}, ErrNotFound
+	}
+	return domain.Stats(asset), nil
 }
 
 func (s *Store) load() error {

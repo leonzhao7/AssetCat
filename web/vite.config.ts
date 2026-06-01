@@ -8,7 +8,6 @@ export default defineConfig({
     port: 6173,
     proxy: {
       '/assets': 'http://127.0.0.1:9080',
-      '/summary': 'http://127.0.0.1:9080',
       '/healthz': 'http://127.0.0.1:9080',
     },
   },
