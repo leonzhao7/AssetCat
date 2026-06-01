@@ -503,7 +503,7 @@ textarea {
 .domain-table-head,
 .domain-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 120px 70px 112px;
+  grid-template-columns: minmax(220px, 1fr) 180px 90px 230px;
   gap: 12px;
   align-items: center;
 }
@@ -522,42 +522,37 @@ textarea {
   background: var(--panel-strong);
 }
 
-.domain-card {
-  display: grid;
-  gap: 14px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel-strong);
+.domain-row.expanded {
+  border-color: rgb(34 107 77 / 35%);
+  background: #f3f8f1;
 }
 
-.domain-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.domain-card-head span:first-child {
+.domain-name-button {
   min-width: 0;
+  padding: 0;
+  border: 0;
+  text-align: left;
+  color: var(--ink);
+  background: transparent;
 }
 
-.domain-card-head strong,
-.domain-card-head small {
+.domain-name-button strong,
+.domain-name-button small {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.domain-card-head small {
+.domain-name-button small {
   color: var(--muted);
 }
 
-.domain-columns {
+.domain-expand {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+  padding: 0 0 10px;
 }
 
 .mini-panel {
@@ -579,6 +574,10 @@ textarea {
   padding: 8px;
   border-radius: 8px;
   background: var(--panel-strong);
+}
+
+.mini-row.single {
+  grid-template-columns: 1fr;
 }
 
 .mini-row strong,
@@ -605,6 +604,10 @@ textarea {
   align-items: center;
   justify-content: flex-end;
   gap: 7px;
+}
+
+.rotated {
+  transform: rotate(180deg);
 }
 
 .domain-line,
@@ -831,12 +834,7 @@ textarea {
     grid-template-columns: 1fr;
   }
 
-  .domain-card-head {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .domain-columns {
+  .domain-expand {
     grid-template-columns: 1fr;
   }
 

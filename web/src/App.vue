@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Box,
   Bug,
+  ChevronDown,
   Edit3,
   Globe2,
   Layers3,
@@ -41,6 +42,7 @@ const severities: Severity[] = ['critical', 'high', 'medium', 'low', 'info']
 
 const assets = ref<Asset[]>([])
 const selectedID = ref('')
+const expandedDomain = ref('')
 const assetStats = ref<AssetStats | null>(null)
 const loading = ref(false)
 const saving = ref(false)
@@ -146,12 +148,14 @@ async function loadSelectedStats() {
 
 function openAsset(asset: Asset) {
   selectedID.value = asset.id
+  expandedDomain.value = asset.domains[0]?.name ?? ''
   riskForm.domain = asset.primary_domain
   void loadSelectedStats()
 }
 
 function backToList() {
   selectedID.value = ''
+  expandedDomain.value = ''
   assetStats.value = null
 }
 
@@ -538,6 +542,29 @@ function countComponents(asset: Asset) {
   return asset.domains.reduce((count, domain) => count + (domain.components?.length ?? 0), 0)
 }
 
+function toggleDomain(domainName: string) {
+  expandedDomain.value = expandedDomain.value === domainName ? '' : domainName
+}
+
+function latestIP(domain: DomainRecord) {
+  const latest = [...(domain.ips ?? [])].sort((a, b) => Date.parse(b.last_seen ?? '') - Date.parse(a.last_seen ?? ''))[0]
+  return latest?.address ?? '-'
+}
+
+function domainRiskCount(domain: DomainRecord) {
+  return domain.risks?.length ?? 0
+}
+
+function domainServices(domain: DomainRecord) {
+  const services = new Set<string>()
+  for (const ip of domain.ips ?? []) {
+    for (const port of ip.ports ?? []) {
+      services.add(`${port.port}/${port.protocol} ${port.service || 'unknown'}`)
+    }
+  }
+  return [...services]
+}
+
 onMounted(loadAssets)
 </script>
 
@@ -643,13 +670,24 @@ onMounted(loadAssets)
                 <span>新增域名</span>
               </button>
             </div>
-            <div class="domain-card" v-for="domain in visibleDomains" :key="domain.name">
-              <div class="domain-card-head">
-                <span>
+            <div class="domain-table-head">
+              <span>域名</span>
+              <span>最新 IP</span>
+              <span>风险数量</span>
+              <span>更多信息</span>
+            </div>
+            <template v-for="domain in visibleDomains" :key="domain.name">
+              <div class="domain-row" :class="{ expanded: expandedDomain === domain.name }">
+                <button class="domain-name-button" type="button" @click="toggleDomain(domain.name)">
                   <strong>{{ domain.name }}</strong>
                   <small>{{ domain.kind }}</small>
-                </span>
+                </button>
+                <span>{{ latestIP(domain) }}</span>
+                <span>{{ domainRiskCount(domain) }}</span>
                 <span class="row-actions">
+                  <button class="icon-button small" type="button" title="展开详情" @click="toggleDomain(domain.name)">
+                    <ChevronDown :size="15" :class="{ rotated: expandedDomain === domain.name }" />
+                  </button>
                   <button class="icon-button small" type="button" title="新增 IP" @click="openIPForm(domain.name)">
                     <Server :size="15" />
                   </button>
@@ -668,13 +706,13 @@ onMounted(loadAssets)
                 </span>
               </div>
 
-              <div class="domain-columns">
+              <div v-if="expandedDomain === domain.name" class="domain-expand">
                 <div class="mini-panel">
-                  <h3>IP</h3>
+                  <h3>历史 IP</h3>
                   <div class="mini-row" v-for="ip in domain.ips" :key="ip.address">
                     <span>
                       <strong>{{ ip.address }}</strong>
-                      <small>{{ ip.ports?.[0]?.port ?? '-' }}/{{ ip.ports?.[0]?.protocol ?? 'tcp' }} {{ ip.ports?.[0]?.service || '' }}</small>
+                      <small>{{ formatTime(ip.last_seen) }}</small>
                     </span>
                     <span class="row-actions">
                       <button class="icon-button small" type="button" title="编辑 IP" @click="openIPForm(domain.name, ip)">
@@ -686,6 +724,17 @@ onMounted(loadAssets)
                     </span>
                   </div>
                   <div v-if="!domain.ips?.length" class="empty mini">暂无 IP</div>
+                </div>
+
+                <div class="mini-panel">
+                  <h3>服务</h3>
+                  <div class="mini-row single" v-for="service in domainServices(domain)" :key="service">
+                    <span>
+                      <strong>{{ service }}</strong>
+                      <small>{{ domain.name }}</small>
+                    </span>
+                  </div>
+                  <div v-if="!domainServices(domain).length" class="empty mini">暂无服务</div>
                 </div>
 
                 <div class="mini-panel">
@@ -726,7 +775,7 @@ onMounted(loadAssets)
                   <div v-if="!domain.risks?.length" class="empty mini">暂无风险</div>
                 </div>
               </div>
-            </div>
+            </template>
           </section>
 
           <aside class="asset-side">
