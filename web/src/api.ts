@@ -1,4 +1,4 @@
-import type { Asset, AssetStats, CreateAssetPayload, DomainRecord, RiskFinding } from './types'
+import type { Asset, AssetStats, ComponentRecord, CreateAssetPayload, DomainRecord, IPRecord, RiskFinding } from './types'
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
@@ -60,6 +60,46 @@ export function deleteDomain(assetID: string, domainName: string) {
   })
 }
 
+export function addDomainIP(assetID: string, domainName: string, payload: IPRecord) {
+  return request<Asset>(`/assets/${encodeURIComponent(assetID)}/domains/${encodeURIComponent(domainName)}/ips`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateDomainIP(assetID: string, domainName: string, address: string, payload: IPRecord) {
+  return request<Asset>(`/assets/${encodeURIComponent(assetID)}/domains/${encodeURIComponent(domainName)}/ips/${encodeURIComponent(address)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteDomainIP(assetID: string, domainName: string, address: string) {
+  return request<Asset>(`/assets/${encodeURIComponent(assetID)}/domains/${encodeURIComponent(domainName)}/ips/${encodeURIComponent(address)}`, {
+    method: 'DELETE',
+  })
+}
+
+export function addDomainComponent(assetID: string, domainName: string, payload: ComponentRecord) {
+  return request<Asset>(`/assets/${encodeURIComponent(assetID)}/domains/${encodeURIComponent(domainName)}/components`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateDomainComponent(assetID: string, domainName: string, componentID: string, payload: ComponentRecord) {
+  return request<Asset>(`/assets/${encodeURIComponent(assetID)}/domains/${encodeURIComponent(domainName)}/components/${encodeURIComponent(componentID)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteDomainComponent(assetID: string, domainName: string, componentID: string) {
+  return request<Asset>(`/assets/${encodeURIComponent(assetID)}/domains/${encodeURIComponent(domainName)}/components/${encodeURIComponent(componentID)}`, {
+    method: 'DELETE',
+  })
+}
+
 export function createAsset(payload: CreateAssetPayload) {
   return request<Asset>('/assets', {
     method: 'POST',
@@ -84,5 +124,18 @@ export function addRisk(assetID: string, domainName: string, payload: RiskFindin
   return request<Asset>(`/assets/${encodeURIComponent(assetID)}/domains/${encodeURIComponent(domainName)}/risks`, {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+export function updateRisk(assetID: string, domainName: string, riskID: string, payload: RiskFinding) {
+  return request<Asset>(`/assets/${encodeURIComponent(assetID)}/domains/${encodeURIComponent(domainName)}/risks/${encodeURIComponent(riskID)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteRisk(assetID: string, domainName: string, riskID: string) {
+  return request<Asset>(`/assets/${encodeURIComponent(assetID)}/domains/${encodeURIComponent(domainName)}/risks/${encodeURIComponent(riskID)}`, {
+    method: 'DELETE',
   })
 }

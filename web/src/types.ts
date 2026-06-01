@@ -32,6 +32,8 @@ export interface Asset {
 export interface DomainRecord {
   name: string
   kind: 'primary' | 'subdomain' | 'ip_alias'
+  ips?: IPRecord[]
+  components?: ComponentRecord[]
   risks?: RiskFinding[]
   first_seen: string
   last_seen: string

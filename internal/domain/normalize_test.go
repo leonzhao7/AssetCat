@@ -52,3 +52,31 @@ func TestNormalizeRiskRequiresHTTPRequestEvidence(t *testing.T) {
 		t.Fatal("NormalizeRiskFinding did not generate stable id")
 	}
 }
+
+func TestNormalizeAssetMovesAssetEvidenceToPrimaryDomain(t *testing.T) {
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	asset, err := NormalizeAsset(Asset{
+		PrimaryDomain: "example.com",
+		IPs: []IPRecord{{
+			Address: "203.0.113.10",
+			Ports: []PortRecord{{
+				Port:     443,
+				Protocol: "tcp",
+			}},
+		}},
+		Components: []ComponentRecord{{
+			Name:            "nginx",
+			ProofURL:        "https://example.com/",
+			ResponseContent: "HTTP/1.1 200 OK\r\n\r\n",
+		}},
+	}, now)
+	if err != nil {
+		t.Fatalf("NormalizeAsset returned error: %v", err)
+	}
+	if len(asset.IPs) != 0 || len(asset.Components) != 0 {
+		t.Fatalf("asset-level evidence = ips:%d components:%d, want moved to domain", len(asset.IPs), len(asset.Components))
+	}
+	if len(asset.Domains) != 1 || len(asset.Domains[0].IPs) != 1 || len(asset.Domains[0].Components) != 1 {
+		t.Fatalf("domain evidence = %#v, want primary domain with ip and component", asset.Domains)
+	}
+}

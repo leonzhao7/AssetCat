@@ -17,16 +17,16 @@
 资产包含：
 
 - `domains`: 主域名、子域名或 IP 别名。
-- `ips`: IP 及端口服务。
-- `components`: 指纹识别出的组件。
 - `tags`, `owner`, `business_unit`, `status`, `metadata`: 运营补充字段。
 
 ### 域名 DomainRecord
 
-每个域名或子域名保存自己的风险证据：
+每个域名或子域名保存自己的 IP、组件和风险证据：
 
 - `name`: 域名、子域名或 IP。
 - `kind`: `primary`, `subdomain`, `ip_alias`。
+- `ips`: 该域名解析或探测到的 IP 及端口服务。
+- `components`: 该域名识别出的组件和证明。
 - `risks`: 风险列表。
 
 ### 风险 RiskFinding
@@ -65,7 +65,9 @@
 - 组件必须包含 `proof_url` 和 `response_content`。
 - 风险必须包含 `url`, `request`, `response`。
 - 端口范围必须是 `1-65535`，协议只支持 `tcp` 或 `udp`。
-- 重复写入资产时按域名、IP、端口和组件 ID 合并。
+- 资产至少保留一个域名。
+- 兼容旧格式创建参数：资产级 `ips`、`components` 会自动归入当前资产域名。
+- 重复写入资产时按域名、域名内 IP、端口和组件 ID 合并。
 
 ## API
 
@@ -84,9 +86,15 @@
 - `POST /assets/{id}/domains`: 追加或合并域名/子域名。
 - `PUT /assets/{id}/domains/{domain}`: 更新资产内域名或子域名。
 - `DELETE /assets/{id}/domains/{domain}`: 删除资产内域名或子域名；删除当前主域名时会提升一个剩余域名为新的资产域名。
-- `POST /assets/{id}/ips`: 追加或合并 IP 和端口。
-- `POST /assets/{id}/components`: 追加或更新组件。
-- `POST /assets/{id}/domains/{domain}/risks`: 给指定域名追加或更新风险。
+- `POST /assets/{id}/domains/{domain}/ips`: 给指定域名追加或合并 IP 和端口。
+- `PUT /assets/{id}/domains/{domain}/ips/{ip}`: 更新指定域名下的 IP 和端口。
+- `DELETE /assets/{id}/domains/{domain}/ips/{ip}`: 删除指定域名下的 IP。
+- `POST /assets/{id}/domains/{domain}/components`: 给指定域名追加或更新组件。
+- `PUT /assets/{id}/domains/{domain}/components/{component_id}`: 更新指定域名下的组件。
+- `DELETE /assets/{id}/domains/{domain}/components/{component_id}`: 删除指定域名下的组件。
+- `POST /assets/{id}/domains/{domain}/risks`: 给指定域名追加风险。
+- `PUT /assets/{id}/domains/{domain}/risks/{risk_id}`: 更新指定域名下的风险。
+- `DELETE /assets/{id}/domains/{domain}/risks/{risk_id}`: 删除指定域名下的风险。
 - `GET /assets/{id}/risks`: 拉平查看资产下全部风险，支持 `severity` 过滤。
 
 ## 后续扩展建议

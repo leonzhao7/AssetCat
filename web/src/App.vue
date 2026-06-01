@@ -18,16 +18,24 @@ import {
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
   addDomain,
+  addDomainComponent,
+  addDomainIP,
   addRisk,
   createAsset,
   deleteAsset,
+  deleteDomainComponent,
+  deleteDomainIP,
+  deleteRisk,
   deleteDomain,
   fetchAssets,
   fetchAssetStats,
   updateAsset,
+  updateDomainComponent,
   updateDomain,
+  updateDomainIP,
+  updateRisk,
 } from './api'
-import type { Asset, AssetStats, CreateAssetPayload, DomainRecord, RiskFinding, Severity } from './types'
+import type { Asset, AssetStats, ComponentRecord, CreateAssetPayload, DomainRecord, IPRecord, RiskFinding, Severity } from './types'
 
 const severities: Severity[] = ['critical', 'high', 'medium', 'low', 'info']
 
@@ -42,6 +50,8 @@ const severityFilter = ref('')
 const showAssetForm = ref(false)
 const showDomainForm = ref(false)
 const showRiskForm = ref(false)
+const showIPForm = ref(false)
+const showComponentForm = ref(false)
 
 const assetForm = reactive({
   mode: 'create' as 'create' | 'edit',
@@ -65,12 +75,35 @@ const domainForm = reactive({
 })
 
 const riskForm = reactive({
+  mode: 'create' as 'create' | 'edit',
+  id: '',
   domain: '',
   title: '',
   severity: 'high' as Severity,
   url: '',
   request: '',
   response: '',
+})
+
+const ipForm = reactive({
+  mode: 'create' as 'create' | 'edit',
+  domain: '',
+  originalAddress: '',
+  address: '',
+  port: 443,
+  protocol: 'tcp' as 'tcp' | 'udp',
+  service: '',
+  banner: '',
+})
+
+const componentForm = reactive({
+  mode: 'create' as 'create' | 'edit',
+  domain: '',
+  id: '',
+  name: '',
+  version: '',
+  proofURL: '',
+  responseContent: '',
 })
 
 const selectedAsset = computed(() => assets.value.find((asset) => asset.id === selectedID.value))
@@ -292,12 +325,28 @@ async function removeDomain(domainName: string) {
 
 function openRiskForm(domainName: string) {
   Object.assign(riskForm, {
+    mode: 'create',
+    id: '',
     domain: domainName,
     title: '',
     severity: 'high',
     url: '',
     request: '',
     response: '',
+  })
+  showRiskForm.value = true
+}
+
+function openEditRisk(domainName: string, risk: RiskFinding) {
+  Object.assign(riskForm, {
+    mode: 'edit',
+    id: risk.id ?? '',
+    domain: domainName,
+    title: risk.title,
+    severity: risk.severity,
+    url: risk.url,
+    request: risk.request,
+    response: risk.response,
   })
   showRiskForm.value = true
 }
@@ -315,12 +364,148 @@ async function submitRisk() {
       request: riskForm.request,
       response: riskForm.response,
     }
-    const updated = await addRisk(asset.id, riskForm.domain, payload)
+    const updated =
+      riskForm.mode === 'edit'
+        ? await updateRisk(asset.id, riskForm.domain, riskForm.id, payload)
+        : await addRisk(asset.id, riskForm.domain, payload)
     showRiskForm.value = false
     selectedID.value = updated.id
     await loadAssets()
   } catch (err) {
     error.value = err instanceof Error ? err.message : '保存风险失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function removeRisk(domainName: string, riskID?: string) {
+  const asset = selectedAsset.value
+  if (!asset || !riskID || !window.confirm('删除风险？')) return
+  saving.value = true
+  error.value = ''
+  try {
+    const updated = await deleteRisk(asset.id, domainName, riskID)
+    selectedID.value = updated.id
+    await loadAssets()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '删除风险失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+function openIPForm(domainName: string, ip?: IPRecord) {
+  Object.assign(ipForm, {
+    mode: ip ? 'edit' : 'create',
+    domain: domainName,
+    originalAddress: ip?.address ?? '',
+    address: ip?.address ?? '',
+    port: ip?.ports?.[0]?.port ?? 443,
+    protocol: ip?.ports?.[0]?.protocol ?? 'tcp',
+    service: ip?.ports?.[0]?.service ?? '',
+    banner: ip?.ports?.[0]?.banner ?? '',
+  })
+  showIPForm.value = true
+}
+
+async function submitIP() {
+  const asset = selectedAsset.value
+  if (!asset) return
+  const payload: IPRecord = {
+    address: ipForm.address,
+    ports: [
+      {
+        port: Number(ipForm.port),
+        protocol: ipForm.protocol,
+        service: valueOrUndefined(ipForm.service),
+        banner: valueOrUndefined(ipForm.banner),
+      },
+    ],
+  }
+  saving.value = true
+  error.value = ''
+  try {
+    const updated =
+      ipForm.mode === 'edit'
+        ? await updateDomainIP(asset.id, ipForm.domain, ipForm.originalAddress, payload)
+        : await addDomainIP(asset.id, ipForm.domain, payload)
+    showIPForm.value = false
+    selectedID.value = updated.id
+    await loadAssets()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '保存 IP 失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function removeIP(domainName: string, address: string) {
+  const asset = selectedAsset.value
+  if (!asset || !window.confirm(`删除 IP ${address}？`)) return
+  saving.value = true
+  error.value = ''
+  try {
+    const updated = await deleteDomainIP(asset.id, domainName, address)
+    selectedID.value = updated.id
+    await loadAssets()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '删除 IP 失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+function openComponentForm(domainName: string, component?: ComponentRecord) {
+  Object.assign(componentForm, {
+    mode: component ? 'edit' : 'create',
+    domain: domainName,
+    id: component?.id ?? '',
+    name: component?.name ?? '',
+    version: component?.version ?? '',
+    proofURL: component?.proof_url ?? '',
+    responseContent: component?.response_content ?? '',
+  })
+  showComponentForm.value = true
+}
+
+async function submitComponent() {
+  const asset = selectedAsset.value
+  if (!asset) return
+  const payload: ComponentRecord = {
+    id: componentForm.id || undefined,
+    name: componentForm.name,
+    version: valueOrUndefined(componentForm.version),
+    proof_url: componentForm.proofURL,
+    response_content: componentForm.responseContent,
+  }
+  saving.value = true
+  error.value = ''
+  try {
+    const updated =
+      componentForm.mode === 'edit'
+        ? await updateDomainComponent(asset.id, componentForm.domain, componentForm.id, payload)
+        : await addDomainComponent(asset.id, componentForm.domain, payload)
+    showComponentForm.value = false
+    selectedID.value = updated.id
+    await loadAssets()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '保存组件失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function removeComponent(domainName: string, componentID?: string) {
+  const asset = selectedAsset.value
+  if (!asset || !componentID || !window.confirm('删除组件？')) return
+  saving.value = true
+  error.value = ''
+  try {
+    const updated = await deleteDomainComponent(asset.id, domainName, componentID)
+    selectedID.value = updated.id
+    await loadAssets()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '删除组件失败'
   } finally {
     saving.value = false
   }
@@ -343,6 +528,14 @@ function formatTime(value?: string) {
 
 function countRisks(asset: Asset) {
   return asset.domains.reduce((count, domain) => count + (domain.risks?.length ?? 0), 0)
+}
+
+function countIPs(asset: Asset) {
+  return asset.domains.reduce((count, domain) => count + (domain.ips?.length ?? 0), 0)
+}
+
+function countComponents(asset: Asset) {
+  return asset.domains.reduce((count, domain) => count + (domain.components?.length ?? 0), 0)
 }
 
 onMounted(loadAssets)
@@ -406,8 +599,8 @@ onMounted(loadAssets)
             <small>{{ asset.name || asset.owner || asset.id }}</small>
             <span class="asset-card-metrics">
               <b>{{ asset.domains.length }}</b> 域名
-              <b>{{ asset.ips.length }}</b> IP
-              <b>{{ asset.components.length }}</b> 组件
+              <b>{{ countIPs(asset) }}</b> IP
+              <b>{{ countComponents(asset) }}</b> 组件
               <b>{{ countRisks(asset) }}</b> 风险
             </span>
             <time>{{ formatTime(asset.updated_at) }}</time>
@@ -450,56 +643,93 @@ onMounted(loadAssets)
                 <span>新增域名</span>
               </button>
             </div>
-            <div class="domain-table-head">
-              <span>域名</span>
-              <span>类型</span>
-              <span>风险</span>
-              <span>操作</span>
-            </div>
-            <div class="domain-row" v-for="domain in visibleDomains" :key="domain.name">
-              <strong>{{ domain.name }}</strong>
-              <span>{{ domain.kind }}</span>
-              <span>{{ domain.risks?.length ?? 0 }}</span>
-              <span class="row-actions">
-                <button class="icon-button small" type="button" title="登记风险" @click="openRiskForm(domain.name)">
-                  <Bug :size="15" />
-                </button>
-                <button class="icon-button small" type="button" title="编辑域名" @click="openEditDomain(domain)">
-                  <Edit3 :size="15" />
-                </button>
-                <button class="icon-button small danger" type="button" title="删除域名" :disabled="saving" @click="removeDomain(domain.name)">
-                  <Trash2 :size="15" />
-                </button>
-              </span>
+            <div class="domain-card" v-for="domain in visibleDomains" :key="domain.name">
+              <div class="domain-card-head">
+                <span>
+                  <strong>{{ domain.name }}</strong>
+                  <small>{{ domain.kind }}</small>
+                </span>
+                <span class="row-actions">
+                  <button class="icon-button small" type="button" title="新增 IP" @click="openIPForm(domain.name)">
+                    <Server :size="15" />
+                  </button>
+                  <button class="icon-button small" type="button" title="新增组件" @click="openComponentForm(domain.name)">
+                    <Layers3 :size="15" />
+                  </button>
+                  <button class="icon-button small" type="button" title="登记风险" @click="openRiskForm(domain.name)">
+                    <Bug :size="15" />
+                  </button>
+                  <button class="icon-button small" type="button" title="编辑域名" @click="openEditDomain(domain)">
+                    <Edit3 :size="15" />
+                  </button>
+                  <button class="icon-button small danger" type="button" title="删除域名" :disabled="saving" @click="removeDomain(domain.name)">
+                    <Trash2 :size="15" />
+                  </button>
+                </span>
+              </div>
+
+              <div class="domain-columns">
+                <div class="mini-panel">
+                  <h3>IP</h3>
+                  <div class="mini-row" v-for="ip in domain.ips" :key="ip.address">
+                    <span>
+                      <strong>{{ ip.address }}</strong>
+                      <small>{{ ip.ports?.[0]?.port ?? '-' }}/{{ ip.ports?.[0]?.protocol ?? 'tcp' }} {{ ip.ports?.[0]?.service || '' }}</small>
+                    </span>
+                    <span class="row-actions">
+                      <button class="icon-button small" type="button" title="编辑 IP" @click="openIPForm(domain.name, ip)">
+                        <Edit3 :size="14" />
+                      </button>
+                      <button class="icon-button small danger" type="button" title="删除 IP" @click="removeIP(domain.name, ip.address)">
+                        <Trash2 :size="14" />
+                      </button>
+                    </span>
+                  </div>
+                  <div v-if="!domain.ips?.length" class="empty mini">暂无 IP</div>
+                </div>
+
+                <div class="mini-panel">
+                  <h3>组件</h3>
+                  <div class="mini-row" v-for="component in domain.components" :key="component.id">
+                    <span>
+                      <strong>{{ component.name }} {{ component.version }}</strong>
+                      <small>{{ component.proof_url }}</small>
+                    </span>
+                    <span class="row-actions">
+                      <button class="icon-button small" type="button" title="编辑组件" @click="openComponentForm(domain.name, component)">
+                        <Edit3 :size="14" />
+                      </button>
+                      <button class="icon-button small danger" type="button" title="删除组件" @click="removeComponent(domain.name, component.id)">
+                        <Trash2 :size="14" />
+                      </button>
+                    </span>
+                  </div>
+                  <div v-if="!domain.components?.length" class="empty mini">暂无组件</div>
+                </div>
+
+                <div class="mini-panel">
+                  <h3>风险</h3>
+                  <div class="mini-row" v-for="risk in domain.risks" :key="risk.id">
+                    <span>
+                      <strong>{{ risk.title }}</strong>
+                      <small>{{ risk.severity }} · {{ risk.url }}</small>
+                    </span>
+                    <span class="row-actions">
+                      <button class="icon-button small" type="button" title="编辑风险" @click="openEditRisk(domain.name, risk)">
+                        <Edit3 :size="14" />
+                      </button>
+                      <button class="icon-button small danger" type="button" title="删除风险" @click="removeRisk(domain.name, risk.id)">
+                        <Trash2 :size="14" />
+                      </button>
+                    </span>
+                  </div>
+                  <div v-if="!domain.risks?.length" class="empty mini">暂无风险</div>
+                </div>
+              </div>
             </div>
           </section>
 
           <aside class="asset-side">
-            <section class="panel">
-              <h3>IP 端口服务</h3>
-              <div class="ip-block" v-for="ip in selectedAsset.ips" :key="ip.address">
-                <strong>{{ ip.address }}</strong>
-                <div class="port-list">
-                  <span v-for="port in ip.ports" :key="`${ip.address}-${port.port}-${port.protocol}`">
-                    {{ port.port }}/{{ port.protocol }} {{ port.service || 'unknown' }}
-                  </span>
-                </div>
-              </div>
-              <div v-if="!selectedAsset.ips.length" class="empty small">暂无 IP</div>
-            </section>
-
-            <section class="panel">
-              <h3>组件证明</h3>
-              <div class="component" v-for="component in selectedAsset.components" :key="component.id">
-                <Layers3 :size="17" />
-                <span>
-                  <strong>{{ component.name }} {{ component.version }}</strong>
-                  <small>{{ component.proof_url }}</small>
-                </span>
-              </div>
-              <div v-if="!selectedAsset.components.length" class="empty small">暂无组件</div>
-            </section>
-
             <section class="panel">
               <h3>最新风险</h3>
               <div class="risk-item" v-for="risk in visibleRisks.slice(0, 6)" :key="risk.id || `${risk.domain}-${risk.title}`">
@@ -573,7 +803,7 @@ onMounted(loadAssets)
     <div v-if="showRiskForm" class="overlay" @click.self="showRiskForm = false">
       <form class="drawer" @submit.prevent="submitRisk">
         <header>
-          <h2>登记风险</h2>
+          <h2>{{ riskForm.mode === 'edit' ? '编辑风险' : '登记风险' }}</h2>
           <button class="icon-button" type="button" title="关闭" @click="showRiskForm = false">
             <X :size="18" />
           </button>
@@ -591,6 +821,54 @@ onMounted(loadAssets)
         <button class="primary-button full" type="submit" :disabled="saving">
           <Plus :size="18" />
           <span>{{ saving ? '保存中' : '保存风险' }}</span>
+        </button>
+      </form>
+    </div>
+
+    <div v-if="showIPForm" class="overlay" @click.self="showIPForm = false">
+      <form class="drawer" @submit.prevent="submitIP">
+        <header>
+          <h2>{{ ipForm.mode === 'edit' ? '编辑 IP' : '新增 IP' }}</h2>
+          <button class="icon-button" type="button" title="关闭" @click="showIPForm = false">
+            <X :size="18" />
+          </button>
+        </header>
+        <label>域名<input v-model="ipForm.domain" required /></label>
+        <label>IP<input v-model="ipForm.address" required placeholder="203.0.113.10" /></label>
+        <div class="form-grid">
+          <label>端口<input v-model.number="ipForm.port" type="number" min="1" max="65535" /></label>
+          <label>协议
+            <select v-model="ipForm.protocol">
+              <option value="tcp">tcp</option>
+              <option value="udp">udp</option>
+            </select>
+          </label>
+        </div>
+        <label>服务<input v-model="ipForm.service" placeholder="https" /></label>
+        <label>Banner<input v-model="ipForm.banner" placeholder="nginx/1.24" /></label>
+        <button class="primary-button full" type="submit" :disabled="saving">
+          <Plus :size="18" />
+          <span>{{ saving ? '保存中' : '保存 IP' }}</span>
+        </button>
+      </form>
+    </div>
+
+    <div v-if="showComponentForm" class="overlay" @click.self="showComponentForm = false">
+      <form class="drawer" @submit.prevent="submitComponent">
+        <header>
+          <h2>{{ componentForm.mode === 'edit' ? '编辑组件' : '新增组件' }}</h2>
+          <button class="icon-button" type="button" title="关闭" @click="showComponentForm = false">
+            <X :size="18" />
+          </button>
+        </header>
+        <label>域名<input v-model="componentForm.domain" required /></label>
+        <label>组件<input v-model="componentForm.name" required placeholder="nginx" /></label>
+        <label>版本<input v-model="componentForm.version" placeholder="1.24" /></label>
+        <label>证明 URL<input v-model="componentForm.proofURL" required placeholder="https://example.com/" /></label>
+        <label>响应内容<textarea v-model="componentForm.responseContent" required rows="6"></textarea></label>
+        <button class="primary-button full" type="submit" :disabled="saving">
+          <Plus :size="18" />
+          <span>{{ saving ? '保存中' : '保存组件' }}</span>
         </button>
       </form>
     </div>

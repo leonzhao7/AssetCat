@@ -37,11 +37,13 @@ type Asset struct {
 }
 
 type DomainRecord struct {
-	Name      string        `json:"name"`
-	Kind      DomainKind    `json:"kind"`
-	Risks     []RiskFinding `json:"risks,omitempty"`
-	FirstSeen time.Time     `json:"first_seen"`
-	LastSeen  time.Time     `json:"last_seen"`
+	Name       string            `json:"name"`
+	Kind       DomainKind        `json:"kind"`
+	IPs        []IPRecord        `json:"ips,omitempty"`
+	Components []ComponentRecord `json:"components,omitempty"`
+	Risks      []RiskFinding     `json:"risks,omitempty"`
+	FirstSeen  time.Time         `json:"first_seen"`
+	LastSeen   time.Time         `json:"last_seen"`
 }
 
 type RiskFinding struct {

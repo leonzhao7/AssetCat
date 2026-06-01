@@ -84,6 +84,62 @@ func TestAssetLifecycle(t *testing.T) {
 		t.Fatalf("stats = %#v, want counts for one populated asset", stats)
 	}
 
+	ipAdded := doJSON[domain.Asset](t, handler, http.MethodPost, "/assets/"+created.ID+"/domains/admin.example.com/ips", domain.IPRecord{
+		Address: "203.0.113.11",
+		Ports: []domain.PortRecord{{
+			Port:     8443,
+			Protocol: "tcp",
+			Service:  "https-alt",
+		}},
+	}, http.StatusOK)
+	if len(findDomain(t, ipAdded, "admin.example.com").IPs) != 1 {
+		t.Fatalf("admin domain ips = %#v, want one ip", findDomain(t, ipAdded, "admin.example.com").IPs)
+	}
+
+	ipUpdated := doJSON[domain.Asset](t, handler, http.MethodPut, "/assets/"+created.ID+"/domains/admin.example.com/ips/203.0.113.11", domain.IPRecord{
+		Address: "203.0.113.12",
+		Ports: []domain.PortRecord{{
+			Port:     9443,
+			Protocol: "tcp",
+			Service:  "https",
+		}},
+	}, http.StatusOK)
+	if findDomain(t, ipUpdated, "admin.example.com").IPs[0].Address != "203.0.113.12" {
+		t.Fatalf("ip update failed: %#v", findDomain(t, ipUpdated, "admin.example.com").IPs)
+	}
+	doJSON[domain.Asset](t, handler, http.MethodDelete, "/assets/"+created.ID+"/domains/admin.example.com/ips/203.0.113.12", nil, http.StatusOK)
+
+	componentAdded := doJSON[domain.Asset](t, handler, http.MethodPost, "/assets/"+created.ID+"/domains/admin.example.com/components", domain.ComponentRecord{
+		Name:            "spring",
+		Version:         "6",
+		ProofURL:        "https://admin.example.com/",
+		ResponseContent: "HTTP/1.1 200 OK\r\nX-App: spring\r\n\r\n",
+	}, http.StatusOK)
+	componentID := findDomain(t, componentAdded, "admin.example.com").Components[0].ID
+	componentUpdated := doJSON[domain.Asset](t, handler, http.MethodPut, "/assets/"+created.ID+"/domains/admin.example.com/components/"+componentID, domain.ComponentRecord{
+		Name:            "spring-framework",
+		Version:         "6",
+		ProofURL:        "https://admin.example.com/",
+		ResponseContent: "HTTP/1.1 200 OK\r\nX-App: spring-framework\r\n\r\n",
+	}, http.StatusOK)
+	if findDomain(t, componentUpdated, "admin.example.com").Components[0].Name != "spring-framework" {
+		t.Fatalf("component update failed: %#v", findDomain(t, componentUpdated, "admin.example.com").Components)
+	}
+	doJSON[domain.Asset](t, handler, http.MethodDelete, "/assets/"+created.ID+"/domains/admin.example.com/components/"+componentID, nil, http.StatusOK)
+
+	riskID := findDomain(t, updated, "admin.example.com").Risks[0].ID
+	riskUpdated := doJSON[domain.Asset](t, handler, http.MethodPut, "/assets/"+created.ID+"/domains/admin.example.com/risks/"+riskID, domain.RiskFinding{
+		Title:    "admin console exposed updated",
+		Severity: domain.SeverityCritical,
+		URL:      "https://admin.example.com/admin",
+		Request:  "GET /admin HTTP/1.1\r\nHost: admin.example.com\r\n\r\n",
+		Response: "HTTP/1.1 200 OK\r\n\r\nadmin",
+	}, http.StatusOK)
+	if findDomain(t, riskUpdated, "admin.example.com").Risks[0].Severity != domain.SeverityCritical {
+		t.Fatalf("risk update failed: %#v", findDomain(t, riskUpdated, "admin.example.com").Risks)
+	}
+	doJSON[domain.Asset](t, handler, http.MethodDelete, "/assets/"+created.ID+"/domains/admin.example.com/risks/"+riskID, nil, http.StatusOK)
+
 	afterPrimaryDelete := doJSON[domain.Asset](t, handler, http.MethodDelete, "/assets/"+created.ID+"/domains/example.com", nil, http.StatusOK)
 	if afterPrimaryDelete.PrimaryDomain != "admin.example.com" {
 		t.Fatalf("PrimaryDomain after deleting old primary = %q, want admin.example.com", afterPrimaryDelete.PrimaryDomain)
@@ -156,4 +212,15 @@ func hasDomain(asset domain.Asset, name string) bool {
 		}
 	}
 	return false
+}
+
+func findDomain(t *testing.T, asset domain.Asset, name string) domain.DomainRecord {
+	t.Helper()
+	for _, record := range asset.Domains {
+		if record.Name == name {
+			return record
+		}
+	}
+	t.Fatalf("domain %q not found in %#v", name, asset.Domains)
+	return domain.DomainRecord{}
 }

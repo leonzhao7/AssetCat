@@ -380,12 +380,237 @@ func (s *Store) AddRisk(assetID string, domainName string, finding domain.RiskFi
 	return cloneAsset(asset), s.saveLocked()
 }
 
+func (s *Store) UpdateRisk(assetID string, domainName string, riskID string, finding domain.RiskFinding) (domain.Asset, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	asset, domainIndex, err := s.getDomainLocked(assetID, domainName)
+	if err != nil {
+		return domain.Asset{}, err
+	}
+	now := s.now().UTC()
+	riskIndex := -1
+	for i := range asset.Domains[domainIndex].Risks {
+		if asset.Domains[domainIndex].Risks[i].ID == riskID {
+			riskIndex = i
+			break
+		}
+	}
+	if riskIndex == -1 {
+		return domain.Asset{}, ErrNotFound
+	}
+	if finding.ID == "" {
+		finding.ID = riskID
+	}
+	if err := domain.NormalizeRiskFinding(&finding, now); err != nil {
+		return domain.Asset{}, err
+	}
+	for i := range asset.Domains[domainIndex].Risks {
+		if i != riskIndex && asset.Domains[domainIndex].Risks[i].ID == finding.ID {
+			return domain.Asset{}, fmt.Errorf("%w: risk already exists in domain", domain.ErrValidation)
+		}
+	}
+	asset.Domains[domainIndex].Risks[riskIndex] = finding
+	return s.saveAssetLocked(assetID, asset, now)
+}
+
+func (s *Store) DeleteRisk(assetID string, domainName string, riskID string) (domain.Asset, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	asset, domainIndex, err := s.getDomainLocked(assetID, domainName)
+	if err != nil {
+		return domain.Asset{}, err
+	}
+	for i := range asset.Domains[domainIndex].Risks {
+		if asset.Domains[domainIndex].Risks[i].ID == riskID {
+			asset.Domains[domainIndex].Risks = append(asset.Domains[domainIndex].Risks[:i], asset.Domains[domainIndex].Risks[i+1:]...)
+			return s.saveAssetLocked(assetID, asset, s.now().UTC())
+		}
+	}
+	return domain.Asset{}, ErrNotFound
+}
+
+func (s *Store) AddDomainIP(assetID string, domainName string, record domain.IPRecord) (domain.Asset, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	asset, domainIndex, err := s.getDomainLocked(assetID, domainName)
+	if err != nil {
+		return domain.Asset{}, err
+	}
+	now := s.now().UTC()
+	if err := domain.NormalizeIPRecord(&record, now); err != nil {
+		return domain.Asset{}, err
+	}
+	for i := range asset.Domains[domainIndex].IPs {
+		if asset.Domains[domainIndex].IPs[i].Address == record.Address {
+			merged, err := domain.MergeIP(asset.Domains[domainIndex].IPs[i], record, now)
+			if err != nil {
+				return domain.Asset{}, err
+			}
+			asset.Domains[domainIndex].IPs[i] = merged
+			return s.saveAssetLocked(assetID, asset, now)
+		}
+	}
+	asset.Domains[domainIndex].IPs = append(asset.Domains[domainIndex].IPs, record)
+	return s.saveAssetLocked(assetID, asset, now)
+}
+
+func (s *Store) UpdateDomainIP(assetID string, domainName string, address string, record domain.IPRecord) (domain.Asset, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	asset, domainIndex, err := s.getDomainLocked(assetID, domainName)
+	if err != nil {
+		return domain.Asset{}, err
+	}
+	now := s.now().UTC()
+	if record.Address == "" {
+		record.Address = address
+	}
+	if err := domain.NormalizeIPRecord(&record, now); err != nil {
+		return domain.Asset{}, err
+	}
+	ipIndex := -1
+	for i := range asset.Domains[domainIndex].IPs {
+		if asset.Domains[domainIndex].IPs[i].Address == address {
+			ipIndex = i
+			continue
+		}
+		if asset.Domains[domainIndex].IPs[i].Address == record.Address {
+			return domain.Asset{}, fmt.Errorf("%w: ip already exists in domain", domain.ErrValidation)
+		}
+	}
+	if ipIndex == -1 {
+		return domain.Asset{}, ErrNotFound
+	}
+	asset.Domains[domainIndex].IPs[ipIndex] = record
+	return s.saveAssetLocked(assetID, asset, now)
+}
+
+func (s *Store) DeleteDomainIP(assetID string, domainName string, address string) (domain.Asset, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	asset, domainIndex, err := s.getDomainLocked(assetID, domainName)
+	if err != nil {
+		return domain.Asset{}, err
+	}
+	for i := range asset.Domains[domainIndex].IPs {
+		if asset.Domains[domainIndex].IPs[i].Address == address {
+			asset.Domains[domainIndex].IPs = append(asset.Domains[domainIndex].IPs[:i], asset.Domains[domainIndex].IPs[i+1:]...)
+			return s.saveAssetLocked(assetID, asset, s.now().UTC())
+		}
+	}
+	return domain.Asset{}, ErrNotFound
+}
+
+func (s *Store) AddDomainComponent(assetID string, domainName string, component domain.ComponentRecord) (domain.Asset, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	asset, domainIndex, err := s.getDomainLocked(assetID, domainName)
+	if err != nil {
+		return domain.Asset{}, err
+	}
+	now := s.now().UTC()
+	if err := domain.NormalizeComponentRecord(&component, now); err != nil {
+		return domain.Asset{}, err
+	}
+	for i := range asset.Domains[domainIndex].Components {
+		if asset.Domains[domainIndex].Components[i].ID == component.ID {
+			merged, err := domain.MergeComponent(asset.Domains[domainIndex].Components[i], component, now)
+			if err != nil {
+				return domain.Asset{}, err
+			}
+			asset.Domains[domainIndex].Components[i] = merged
+			return s.saveAssetLocked(assetID, asset, now)
+		}
+	}
+	asset.Domains[domainIndex].Components = append(asset.Domains[domainIndex].Components, component)
+	return s.saveAssetLocked(assetID, asset, now)
+}
+
+func (s *Store) UpdateDomainComponent(assetID string, domainName string, componentID string, component domain.ComponentRecord) (domain.Asset, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	asset, domainIndex, err := s.getDomainLocked(assetID, domainName)
+	if err != nil {
+		return domain.Asset{}, err
+	}
+	now := s.now().UTC()
+	if component.ID == "" {
+		component.ID = componentID
+	}
+	if err := domain.NormalizeComponentRecord(&component, now); err != nil {
+		return domain.Asset{}, err
+	}
+	componentIndex := -1
+	for i := range asset.Domains[domainIndex].Components {
+		if asset.Domains[domainIndex].Components[i].ID == componentID {
+			componentIndex = i
+			continue
+		}
+		if asset.Domains[domainIndex].Components[i].ID == component.ID {
+			return domain.Asset{}, fmt.Errorf("%w: component already exists in domain", domain.ErrValidation)
+		}
+	}
+	if componentIndex == -1 {
+		return domain.Asset{}, ErrNotFound
+	}
+	asset.Domains[domainIndex].Components[componentIndex] = component
+	return s.saveAssetLocked(assetID, asset, now)
+}
+
+func (s *Store) DeleteDomainComponent(assetID string, domainName string, componentID string) (domain.Asset, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	asset, domainIndex, err := s.getDomainLocked(assetID, domainName)
+	if err != nil {
+		return domain.Asset{}, err
+	}
+	for i := range asset.Domains[domainIndex].Components {
+		if asset.Domains[domainIndex].Components[i].ID == componentID {
+			asset.Domains[domainIndex].Components = append(asset.Domains[domainIndex].Components[:i], asset.Domains[domainIndex].Components[i+1:]...)
+			return s.saveAssetLocked(assetID, asset, s.now().UTC())
+		}
+	}
+	return domain.Asset{}, ErrNotFound
+}
+
 func (s *Store) Stats(assetID string) (domain.AssetStats, error) {
 	asset, ok := s.Get(assetID)
 	if !ok {
 		return domain.AssetStats{}, ErrNotFound
 	}
 	return domain.Stats(asset), nil
+}
+
+func (s *Store) getDomainLocked(assetID string, domainName string) (domain.Asset, int, error) {
+	asset, ok := s.assets[assetID]
+	if !ok {
+		return domain.Asset{}, -1, ErrNotFound
+	}
+	domainName = domain.NormalizeDomain(domainName)
+	for i := range asset.Domains {
+		if asset.Domains[i].Name == domainName {
+			return asset, i, nil
+		}
+	}
+	return domain.Asset{}, -1, ErrNotFound
+}
+
+func (s *Store) saveAssetLocked(assetID string, asset domain.Asset, now time.Time) (domain.Asset, error) {
+	asset.UpdatedAt = now
+	normalized, err := domain.NormalizeAsset(asset, now)
+	if err != nil {
+		return domain.Asset{}, err
+	}
+	s.assets[assetID] = normalized
+	return cloneAsset(normalized), s.saveLocked()
 }
 
 func (s *Store) load() error {

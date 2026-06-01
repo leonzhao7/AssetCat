@@ -124,6 +124,26 @@ curl -s -X DELETE "http://127.0.0.1:9080/assets/{asset_id}/domains/admin.example
 
 主域名和子域名使用同一套属性和操作；删除当前主域名时，系统会从剩余域名中提升一个新的资产域名。资产至少保留一个域名。
 
+## 域名下 IP、组件、风险
+
+每个域名独立维护自己的 IP、组件和风险：
+
+```bash
+curl -s "http://127.0.0.1:9080/assets/{asset_id}/domains/api.example.com/ips" \
+  -H 'Content-Type: application/json' \
+  -d '{"address":"203.0.113.10","ports":[{"port":443,"protocol":"tcp","service":"https"}]}'
+
+curl -s -X PUT "http://127.0.0.1:9080/assets/{asset_id}/domains/api.example.com/ips/203.0.113.10" \
+  -H 'Content-Type: application/json' \
+  -d '{"address":"203.0.113.11","ports":[{"port":8443,"protocol":"tcp","service":"https"}]}'
+
+curl -s "http://127.0.0.1:9080/assets/{asset_id}/domains/api.example.com/components" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"nginx","version":"1.24","proof_url":"https://api.example.com/","response_content":"HTTP/1.1 200 OK\r\nServer: nginx\r\n\r\n"}'
+
+curl -s -X DELETE "http://127.0.0.1:9080/assets/{asset_id}/domains/api.example.com/risks/{risk_id}"
+```
+
 ## 常用查询
 
 ```bash

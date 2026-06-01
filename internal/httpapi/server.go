@@ -172,7 +172,153 @@ func (s *Server) domainRoutes(w http.ResponseWriter, r *http.Request, assetID st
 		s.addRisk(w, r, assetID, domainName)
 		return
 	}
+	if len(rest) >= 2 {
+		domainName, err := url.PathUnescape(rest[0])
+		if err != nil {
+			badRequest(w, "invalid domain name")
+			return
+		}
+		switch rest[1] {
+		case "ips":
+			s.domainIPRoutes(w, r, assetID, domainName, rest[2:])
+		case "components":
+			s.domainComponentRoutes(w, r, assetID, domainName, rest[2:])
+		case "risks":
+			s.domainRiskRoutes(w, r, assetID, domainName, rest[2:])
+		default:
+			notFound(w)
+		}
+		return
+	}
 	methodNotAllowed(w, http.MethodPost)
+}
+
+func (s *Server) domainIPRoutes(w http.ResponseWriter, r *http.Request, assetID string, domainName string, rest []string) {
+	if len(rest) == 0 && r.Method == http.MethodPost {
+		var record domain.IPRecord
+		if !decodeJSON(w, r, &record) {
+			return
+		}
+		asset, err := s.store.AddDomainIP(assetID, domainName, record)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, asset)
+		return
+	}
+	if len(rest) == 1 {
+		address, err := url.PathUnescape(rest[0])
+		if err != nil {
+			badRequest(w, "invalid ip address")
+			return
+		}
+		switch r.Method {
+		case http.MethodPut:
+			var record domain.IPRecord
+			if !decodeJSON(w, r, &record) {
+				return
+			}
+			asset, err := s.store.UpdateDomainIP(assetID, domainName, address, record)
+			if err != nil {
+				writeStoreError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, asset)
+		case http.MethodDelete:
+			asset, err := s.store.DeleteDomainIP(assetID, domainName, address)
+			if err != nil {
+				writeStoreError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, asset)
+		default:
+			methodNotAllowed(w, http.MethodPut, http.MethodDelete)
+		}
+		return
+	}
+	methodNotAllowed(w, http.MethodPost)
+}
+
+func (s *Server) domainComponentRoutes(w http.ResponseWriter, r *http.Request, assetID string, domainName string, rest []string) {
+	if len(rest) == 0 && r.Method == http.MethodPost {
+		var component domain.ComponentRecord
+		if !decodeJSON(w, r, &component) {
+			return
+		}
+		asset, err := s.store.AddDomainComponent(assetID, domainName, component)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, asset)
+		return
+	}
+	if len(rest) == 1 {
+		componentID, err := url.PathUnescape(rest[0])
+		if err != nil {
+			badRequest(w, "invalid component id")
+			return
+		}
+		switch r.Method {
+		case http.MethodPut:
+			var component domain.ComponentRecord
+			if !decodeJSON(w, r, &component) {
+				return
+			}
+			asset, err := s.store.UpdateDomainComponent(assetID, domainName, componentID, component)
+			if err != nil {
+				writeStoreError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, asset)
+		case http.MethodDelete:
+			asset, err := s.store.DeleteDomainComponent(assetID, domainName, componentID)
+			if err != nil {
+				writeStoreError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, asset)
+		default:
+			methodNotAllowed(w, http.MethodPut, http.MethodDelete)
+		}
+		return
+	}
+	methodNotAllowed(w, http.MethodPost)
+}
+
+func (s *Server) domainRiskRoutes(w http.ResponseWriter, r *http.Request, assetID string, domainName string, rest []string) {
+	if len(rest) != 1 {
+		methodNotAllowed(w, http.MethodPut, http.MethodDelete)
+		return
+	}
+	riskID, err := url.PathUnescape(rest[0])
+	if err != nil {
+		badRequest(w, "invalid risk id")
+		return
+	}
+	switch r.Method {
+	case http.MethodPut:
+		var finding domain.RiskFinding
+		if !decodeJSON(w, r, &finding) {
+			return
+		}
+		asset, err := s.store.UpdateRisk(assetID, domainName, riskID, finding)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, asset)
+	case http.MethodDelete:
+		asset, err := s.store.DeleteRisk(assetID, domainName, riskID)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, asset)
+	default:
+		methodNotAllowed(w, http.MethodPut, http.MethodDelete)
+	}
 }
 
 func (s *Server) listAssets(w http.ResponseWriter, r *http.Request) {
@@ -321,8 +467,10 @@ func assetMatches(asset domain.Asset, query url.Values) bool {
 	}
 	if ip != "" {
 		matched := false
-		for _, record := range asset.IPs {
-			matched = matched || record.Address == ip
+		for _, domainRecord := range asset.Domains {
+			for _, record := range domainRecord.IPs {
+				matched = matched || record.Address == ip
+			}
 		}
 		if !matched {
 			return false
@@ -330,10 +478,12 @@ func assetMatches(asset domain.Asset, query url.Values) bool {
 	}
 	if component != "" {
 		matched := false
-		for _, record := range asset.Components {
-			matched = matched ||
-				strings.Contains(strings.ToLower(record.Name), component) ||
-				strings.Contains(strings.ToLower(record.Version), component)
+		for _, domainRecord := range asset.Domains {
+			for _, record := range domainRecord.Components {
+				matched = matched ||
+					strings.Contains(strings.ToLower(record.Name), component) ||
+					strings.Contains(strings.ToLower(record.Version), component)
+			}
 		}
 		if !matched {
 			return false

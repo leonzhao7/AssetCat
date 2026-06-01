@@ -522,6 +522,77 @@ textarea {
   background: var(--panel-strong);
 }
 
+.domain-card {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-strong);
+}
+
+.domain-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.domain-card-head span:first-child {
+  min-width: 0;
+}
+
+.domain-card-head strong,
+.domain-card-head small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.domain-card-head small {
+  color: var(--muted);
+}
+
+.domain-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mini-panel {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--field);
+}
+
+.mini-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--panel-strong);
+}
+
+.mini-row strong,
+.mini-row small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-row small {
+  color: var(--muted);
+}
+
 .domain-row strong {
   min-width: 0;
   overflow: hidden;
@@ -668,6 +739,11 @@ textarea {
   min-height: 56px;
 }
 
+.empty.mini {
+  min-height: 42px;
+  font-size: 12px;
+}
+
 .overlay {
   position: fixed;
   inset: 0;
@@ -752,6 +828,15 @@ textarea {
   }
 
   .domain-row {
+    grid-template-columns: 1fr;
+  }
+
+  .domain-card-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .domain-columns {
     grid-template-columns: 1fr;
   }
 

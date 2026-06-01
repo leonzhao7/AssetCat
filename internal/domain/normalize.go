@@ -72,6 +72,7 @@ func NormalizeAsset(in Asset, now time.Time) (Asset, error) {
 			return Asset{}, err
 		}
 	}
+	moveAssetEvidenceToPrimaryDomain(&asset)
 	sortAsset(&asset)
 	return asset, nil
 }
@@ -102,7 +103,23 @@ func NormalizeDomainRecord(record *DomainRecord, primary string, now time.Time) 
 			return err
 		}
 	}
+	for i := range record.IPs {
+		if err := NormalizeIPRecord(&record.IPs[i], now); err != nil {
+			return err
+		}
+	}
+	for i := range record.Components {
+		if err := NormalizeComponentRecord(&record.Components[i], now); err != nil {
+			return err
+		}
+	}
 	slices.SortFunc(record.Risks, func(a, b RiskFinding) int {
+		return strings.Compare(a.ID, b.ID)
+	})
+	slices.SortFunc(record.IPs, func(a, b IPRecord) int {
+		return strings.Compare(a.Address, b.Address)
+	})
+	slices.SortFunc(record.Components, func(a, b ComponentRecord) int {
 		return strings.Compare(a.ID, b.ID)
 	})
 	return nil
@@ -272,6 +289,36 @@ func MergeDomain(existing DomainRecord, incoming DomainRecord, primary string, n
 	for _, risk := range seen {
 		existing.Risks = append(existing.Risks, risk)
 	}
+	ips := make(map[string]IPRecord, len(existing.IPs)+len(incoming.IPs))
+	for _, ip := range existing.IPs {
+		ips[ip.Address] = ip
+	}
+	for _, ip := range incoming.IPs {
+		merged, err := MergeIP(ips[ip.Address], ip, now)
+		if err != nil {
+			return DomainRecord{}, err
+		}
+		ips[merged.Address] = merged
+	}
+	existing.IPs = existing.IPs[:0]
+	for _, ip := range ips {
+		existing.IPs = append(existing.IPs, ip)
+	}
+	components := make(map[string]ComponentRecord, len(existing.Components)+len(incoming.Components))
+	for _, component := range existing.Components {
+		components[component.ID] = component
+	}
+	for _, component := range incoming.Components {
+		merged, err := MergeComponent(components[component.ID], component, now)
+		if err != nil {
+			return DomainRecord{}, err
+		}
+		components[merged.ID] = merged
+	}
+	existing.Components = existing.Components[:0]
+	for _, component := range components {
+		existing.Components = append(existing.Components, component)
+	}
 	if err := NormalizeDomainRecord(&existing, primary, now); err != nil {
 		return DomainRecord{}, err
 	}
@@ -337,17 +384,17 @@ func Stats(asset Asset) AssetStats {
 		AssetID:       asset.ID,
 		PrimaryDomain: asset.PrimaryDomain,
 		Domains:       len(asset.Domains),
-		IPs:           len(asset.IPs),
-		Components:    len(asset.Components),
 		BySeverity:    make(map[Severity]int),
 		LastUpdated:   asset.UpdatedAt,
-	}
-	for _, ip := range asset.IPs {
-		result.Ports += len(ip.Ports)
 	}
 	for _, record := range asset.Domains {
 		if record.Kind == DomainKindSubdomain {
 			result.Subdomains++
+		}
+		result.IPs += len(record.IPs)
+		result.Components += len(record.Components)
+		for _, ip := range record.IPs {
+			result.Ports += len(ip.Ports)
 		}
 		for _, risk := range record.Risks {
 			result.Risks++
@@ -371,6 +418,25 @@ func FlattenRisks(asset Asset) []RiskFinding {
 	return risks
 }
 
+func DomainStats(record DomainRecord) AssetStats {
+	stats := AssetStats{
+		PrimaryDomain: record.Name,
+		Domains:       1,
+		IPs:           len(record.IPs),
+		Components:    len(record.Components),
+		BySeverity:    make(map[Severity]int),
+		LastUpdated:   record.LastSeen,
+	}
+	for _, ip := range record.IPs {
+		stats.Ports += len(ip.Ports)
+	}
+	for _, risk := range record.Risks {
+		stats.Risks++
+		stats.BySeverity[risk.Severity]++
+	}
+	return stats
+}
+
 func normalizeDomains(domains []DomainRecord, primary string, now time.Time) []DomainRecord {
 	seen := make(map[string]DomainRecord, len(domains)+1)
 	if primary != "" {
@@ -391,6 +457,8 @@ func normalizeDomains(domains []DomainRecord, primary string, now time.Time) []D
 			}
 			prior.LastSeen = now
 			prior.Risks = append(prior.Risks, record.Risks...)
+			prior.IPs = append(prior.IPs, record.IPs...)
+			prior.Components = append(prior.Components, record.Components...)
 			if record.Kind != "" {
 				prior.Kind = record.Kind
 			}
@@ -436,6 +504,71 @@ func sortAsset(asset *Asset) {
 	slices.SortFunc(asset.Components, func(a, b ComponentRecord) int {
 		return strings.Compare(a.ID, b.ID)
 	})
+}
+
+func moveAssetEvidenceToPrimaryDomain(asset *Asset) {
+	if len(asset.IPs) == 0 && len(asset.Components) == 0 {
+		return
+	}
+	for i := range asset.Domains {
+		if asset.Domains[i].Name != asset.PrimaryDomain {
+			continue
+		}
+		now := asset.UpdatedAt
+		for _, ip := range asset.IPs {
+			merged, err := MergeIP(findIP(asset.Domains[i].IPs, ip.Address), ip, now)
+			if err == nil {
+				asset.Domains[i].IPs = upsertIP(asset.Domains[i].IPs, merged)
+			}
+		}
+		for _, component := range asset.Components {
+			merged, err := MergeComponent(findComponent(asset.Domains[i].Components, component.ID), component, now)
+			if err == nil {
+				asset.Domains[i].Components = upsertComponent(asset.Domains[i].Components, merged)
+			}
+		}
+		asset.IPs = nil
+		asset.Components = nil
+		return
+	}
+}
+
+func findIP(records []IPRecord, address string) IPRecord {
+	for _, record := range records {
+		if record.Address == address {
+			return record
+		}
+	}
+	return IPRecord{}
+}
+
+func upsertIP(records []IPRecord, record IPRecord) []IPRecord {
+	for i := range records {
+		if records[i].Address == record.Address {
+			records[i] = record
+			return records
+		}
+	}
+	return append(records, record)
+}
+
+func findComponent(records []ComponentRecord, id string) ComponentRecord {
+	for _, record := range records {
+		if record.ID == id {
+			return record
+		}
+	}
+	return ComponentRecord{}
+}
+
+func upsertComponent(records []ComponentRecord, record ComponentRecord) []ComponentRecord {
+	for i := range records {
+		if records[i].ID == record.ID {
+			records[i] = record
+			return records
+		}
+	}
+	return append(records, record)
 }
 
 func portKey(port PortRecord) string {
