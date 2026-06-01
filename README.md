@@ -122,7 +122,7 @@ curl -s -X PUT "http://127.0.0.1:9080/assets/{asset_id}/domains/api.example.com"
 curl -s -X DELETE "http://127.0.0.1:9080/assets/{asset_id}/domains/admin.example.com"
 ```
 
-主域名是资产标识，不能通过域名删除接口删除。
+主域名和子域名使用同一套属性和操作；删除当前主域名时，系统会从剩余域名中提升一个新的资产域名。资产至少保留一个域名。
 
 ## 常用查询
 

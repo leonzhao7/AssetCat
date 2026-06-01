@@ -189,13 +189,13 @@ func (s *Store) UpdateDomain(assetID string, domainName string, record domain.Do
 	if err := domain.NormalizeDomainRecord(&record, asset.PrimaryDomain, now); err != nil {
 		return domain.Asset{}, err
 	}
-	if existing.Name == asset.PrimaryDomain && record.Name != existing.Name {
-		return domain.Asset{}, fmt.Errorf("%w: primary domain cannot be renamed from domain endpoint", domain.ErrValidation)
-	}
 	for i := range asset.Domains {
 		if i != index && asset.Domains[i].Name == record.Name {
 			return domain.Asset{}, fmt.Errorf("%w: domain already exists in asset", domain.ErrValidation)
 		}
+	}
+	if existing.Name == asset.PrimaryDomain {
+		asset.PrimaryDomain = record.Name
 	}
 	asset.Domains[index] = record
 	asset.UpdatedAt = now
@@ -220,9 +220,6 @@ func (s *Store) DeleteDomain(assetID string, domainName string) (domain.Asset, e
 	if domainName == "" {
 		return domain.Asset{}, fmt.Errorf("%w: domain name is required", domain.ErrValidation)
 	}
-	if domainName == asset.PrimaryDomain {
-		return domain.Asset{}, fmt.Errorf("%w: primary domain cannot be deleted from asset", domain.ErrValidation)
-	}
 	index := -1
 	for i := range asset.Domains {
 		if asset.Domains[i].Name == domainName {
@@ -233,7 +230,13 @@ func (s *Store) DeleteDomain(assetID string, domainName string) (domain.Asset, e
 	if index == -1 {
 		return domain.Asset{}, ErrNotFound
 	}
+	if len(asset.Domains) == 1 {
+		return domain.Asset{}, fmt.Errorf("%w: asset must keep at least one domain", domain.ErrValidation)
+	}
 	asset.Domains = append(asset.Domains[:index], asset.Domains[index+1:]...)
+	if domainName == asset.PrimaryDomain {
+		asset.PrimaryDomain = asset.Domains[0].Name
+	}
 	asset.UpdatedAt = now
 	asset, err := domain.NormalizeAsset(asset, now)
 	if err != nil {

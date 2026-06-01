@@ -84,11 +84,11 @@ func TestAssetLifecycle(t *testing.T) {
 		t.Fatalf("stats = %#v, want counts for one populated asset", stats)
 	}
 
-	afterDelete := doJSON[domain.Asset](t, handler, http.MethodDelete, "/assets/"+created.ID+"/domains/admin.example.com", nil, http.StatusOK)
-	if len(afterDelete.Domains) != 1 || afterDelete.Domains[0].Name != "example.com" {
-		t.Fatalf("domains after delete = %#v, want only primary domain", afterDelete.Domains)
+	afterPrimaryDelete := doJSON[domain.Asset](t, handler, http.MethodDelete, "/assets/"+created.ID+"/domains/example.com", nil, http.StatusOK)
+	if afterPrimaryDelete.PrimaryDomain != "admin.example.com" {
+		t.Fatalf("PrimaryDomain after deleting old primary = %q, want admin.example.com", afterPrimaryDelete.PrimaryDomain)
 	}
-	doJSON[errorResponseBody](t, handler, http.MethodDelete, "/assets/"+created.ID+"/domains/example.com", nil, http.StatusBadRequest)
+	doJSON[errorResponseBody](t, handler, http.MethodDelete, "/assets/"+created.ID+"/domains/admin.example.com", nil, http.StatusBadRequest)
 }
 
 func TestStaticFrontendFallback(t *testing.T) {

@@ -67,6 +67,19 @@ export function createAsset(payload: CreateAssetPayload) {
   })
 }
 
+export function updateAsset(assetID: string, payload: CreateAssetPayload) {
+  return request<Asset>(`/assets/${encodeURIComponent(assetID)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteAsset(assetID: string) {
+  return request<void>(`/assets/${encodeURIComponent(assetID)}`, {
+    method: 'DELETE',
+  })
+}
+
 export function addRisk(assetID: string, domainName: string, payload: RiskFinding) {
   return request<Asset>(`/assets/${encodeURIComponent(assetID)}/domains/${encodeURIComponent(domainName)}/risks`, {
     method: 'POST',

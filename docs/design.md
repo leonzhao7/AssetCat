@@ -83,7 +83,7 @@
 
 - `POST /assets/{id}/domains`: 追加或合并域名/子域名。
 - `PUT /assets/{id}/domains/{domain}`: 更新资产内域名或子域名。
-- `DELETE /assets/{id}/domains/{domain}`: 删除资产内域名或子域名，主域名不能通过该接口删除。
+- `DELETE /assets/{id}/domains/{domain}`: 删除资产内域名或子域名；删除当前主域名时会提升一个剩余域名为新的资产域名。
 - `POST /assets/{id}/ips`: 追加或合并 IP 和端口。
 - `POST /assets/{id}/components`: 追加或更新组件。
 - `POST /assets/{id}/domains/{domain}/risks`: 给指定域名追加或更新风险。
