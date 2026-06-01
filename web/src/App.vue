@@ -7,6 +7,7 @@ import {
   ChevronDown,
   Edit3,
   Globe2,
+  History,
   Layers3,
   Plus,
   RefreshCw,
@@ -43,6 +44,7 @@ const severities: Severity[] = ['critical', 'high', 'medium', 'low', 'info']
 const assets = ref<Asset[]>([])
 const selectedID = ref('')
 const expandedDomain = ref('')
+const historyDomain = ref<DomainRecord | null>(null)
 const assetStats = ref<AssetStats | null>(null)
 const loading = ref(false)
 const saving = ref(false)
@@ -148,7 +150,8 @@ async function loadSelectedStats() {
 
 function openAsset(asset: Asset) {
   selectedID.value = asset.id
-  expandedDomain.value = asset.domains[0]?.name ?? ''
+  expandedDomain.value = ''
+  historyDomain.value = null
   riskForm.domain = asset.primary_domain
   void loadSelectedStats()
 }
@@ -156,6 +159,7 @@ function openAsset(asset: Asset) {
 function backToList() {
   selectedID.value = ''
   expandedDomain.value = ''
+  historyDomain.value = null
   assetStats.value = null
 }
 
@@ -547,8 +551,12 @@ function toggleDomain(domainName: string) {
 }
 
 function latestIP(domain: DomainRecord) {
-  const latest = [...(domain.ips ?? [])].sort((a, b) => Date.parse(b.last_seen ?? '') - Date.parse(a.last_seen ?? ''))[0]
+  const latest = sortedIPs(domain)[0]
   return latest?.address ?? '-'
+}
+
+function sortedIPs(domain: DomainRecord) {
+  return [...(domain.ips ?? [])].sort((a, b) => Date.parse(b.last_seen ?? '') - Date.parse(a.last_seen ?? ''))
 }
 
 function domainRiskCount(domain: DomainRecord) {
@@ -563,6 +571,10 @@ function domainServices(domain: DomainRecord) {
     }
   }
   return [...services]
+}
+
+function openIPHistory(domain: DomainRecord) {
+  historyDomain.value = domain
 }
 
 onMounted(loadAssets)
@@ -682,7 +694,12 @@ onMounted(loadAssets)
                   <strong>{{ domain.name }}</strong>
                   <small>{{ domain.kind }}</small>
                 </button>
-                <span>{{ latestIP(domain) }}</span>
+                <span class="latest-ip-cell">
+                  <span>{{ latestIP(domain) }}</span>
+                  <button class="icon-button small" type="button" title="历史 IP" @click="openIPHistory(domain)">
+                    <History :size="15" />
+                  </button>
+                </span>
                 <span>{{ domainRiskCount(domain) }}</span>
                 <span class="row-actions">
                   <button class="icon-button small" type="button" title="展开详情" @click="toggleDomain(domain.name)">
@@ -707,25 +724,6 @@ onMounted(loadAssets)
               </div>
 
               <div v-if="expandedDomain === domain.name" class="domain-expand">
-                <div class="mini-panel">
-                  <h3>历史 IP</h3>
-                  <div class="mini-row" v-for="ip in domain.ips" :key="ip.address">
-                    <span>
-                      <strong>{{ ip.address }}</strong>
-                      <small>{{ formatTime(ip.last_seen) }}</small>
-                    </span>
-                    <span class="row-actions">
-                      <button class="icon-button small" type="button" title="编辑 IP" @click="openIPForm(domain.name, ip)">
-                        <Edit3 :size="14" />
-                      </button>
-                      <button class="icon-button small danger" type="button" title="删除 IP" @click="removeIP(domain.name, ip.address)">
-                        <Trash2 :size="14" />
-                      </button>
-                    </span>
-                  </div>
-                  <div v-if="!domain.ips?.length" class="empty mini">暂无 IP</div>
-                </div>
-
                 <div class="mini-panel">
                   <h3>服务</h3>
                   <div class="mini-row single" v-for="service in domainServices(domain)" :key="service">
@@ -920,6 +918,38 @@ onMounted(loadAssets)
           <span>{{ saving ? '保存中' : '保存组件' }}</span>
         </button>
       </form>
+    </div>
+
+    <div v-if="historyDomain" class="overlay centered" @click.self="historyDomain = null">
+      <section class="history-card">
+        <header>
+          <div>
+            <p class="eyebrow">IP History</p>
+            <h2>{{ historyDomain.name }}</h2>
+          </div>
+          <button class="icon-button" type="button" title="关闭" @click="historyDomain = null">
+            <X :size="18" />
+          </button>
+        </header>
+        <div class="history-list">
+          <div class="history-row" v-for="ip in sortedIPs(historyDomain)" :key="ip.address">
+            <span>
+              <strong>{{ ip.address }}</strong>
+              <small>{{ ip.ports?.length ?? 0 }} ports</small>
+            </span>
+            <time>{{ formatTime(ip.last_seen) }}</time>
+            <span class="row-actions">
+              <button class="icon-button small" type="button" title="编辑 IP" @click="openIPForm(historyDomain.name, ip); historyDomain = null">
+                <Edit3 :size="14" />
+              </button>
+              <button class="icon-button small danger" type="button" title="删除 IP" @click="removeIP(historyDomain.name, ip.address); historyDomain = null">
+                <Trash2 :size="14" />
+              </button>
+            </span>
+          </div>
+          <div v-if="!historyDomain.ips?.length" class="empty small">暂无历史 IP</div>
+        </div>
+      </section>
     </div>
   </main>
 </template>
