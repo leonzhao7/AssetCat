@@ -689,35 +689,36 @@ onMounted(loadAssets)
               <span>更多信息</span>
             </div>
             <template v-for="domain in visibleDomains" :key="domain.name">
-              <div class="domain-row" :class="{ expanded: expandedDomain === domain.name }">
-                <button class="domain-name-button" type="button" @click="toggleDomain(domain.name)">
+              <div class="domain-row" :class="{ expanded: expandedDomain === domain.name }" @click="toggleDomain(domain.name)">
+                <button class="domain-name-button" type="button" @click.stop="toggleDomain(domain.name)">
                   <strong>{{ domain.name }}</strong>
                   <small>{{ domain.kind }}</small>
                 </button>
                 <span class="latest-ip-cell">
                   <span>{{ latestIP(domain) }}</span>
-                  <button class="icon-button small" type="button" title="历史 IP" @click="openIPHistory(domain)">
+                  <button class="icon-button small" type="button" title="历史 IP" @click.stop="openIPHistory(domain)">
                     <History :size="15" />
                   </button>
                 </span>
                 <span>{{ domainRiskCount(domain) }}</span>
                 <span class="row-actions">
-                  <button class="icon-button small" type="button" title="展开详情" @click="toggleDomain(domain.name)">
+                  <button class="detail-button" type="button" @click.stop="toggleDomain(domain.name)">
                     <ChevronDown :size="15" :class="{ rotated: expandedDomain === domain.name }" />
+                    <span>{{ expandedDomain === domain.name ? '收起' : '详情' }}</span>
                   </button>
-                  <button class="icon-button small" type="button" title="新增 IP" @click="openIPForm(domain.name)">
+                  <button class="icon-button small" type="button" title="新增 IP" @click.stop="openIPForm(domain.name)">
                     <Server :size="15" />
                   </button>
-                  <button class="icon-button small" type="button" title="新增组件" @click="openComponentForm(domain.name)">
+                  <button class="icon-button small" type="button" title="新增组件" @click.stop="openComponentForm(domain.name)">
                     <Layers3 :size="15" />
                   </button>
-                  <button class="icon-button small" type="button" title="登记风险" @click="openRiskForm(domain.name)">
+                  <button class="icon-button small" type="button" title="登记风险" @click.stop="openRiskForm(domain.name)">
                     <Bug :size="15" />
                   </button>
-                  <button class="icon-button small" type="button" title="编辑域名" @click="openEditDomain(domain)">
+                  <button class="icon-button small" type="button" title="编辑域名" @click.stop="openEditDomain(domain)">
                     <Edit3 :size="15" />
                   </button>
-                  <button class="icon-button small danger" type="button" title="删除域名" :disabled="saving" @click="removeDomain(domain.name)">
+                  <button class="icon-button small danger" type="button" title="删除域名" :disabled="saving" @click.stop="removeDomain(domain.name)">
                     <Trash2 :size="15" />
                   </button>
                 </span>

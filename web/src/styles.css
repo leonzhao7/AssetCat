@@ -503,7 +503,7 @@ textarea {
 .domain-table-head,
 .domain-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 180px 90px 230px;
+  grid-template-columns: minmax(220px, 1fr) 180px 90px 290px;
   gap: 12px;
   align-items: center;
 }
@@ -520,6 +520,7 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel-strong);
+  cursor: pointer;
 }
 
 .domain-row.expanded {
@@ -618,6 +619,21 @@ textarea {
   align-items: center;
   justify-content: flex-end;
   gap: 7px;
+}
+
+.detail-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--green-dark);
+  background: var(--panel-strong);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .rotated {
